@@ -54,6 +54,13 @@ con = dbConnect(
   password = Sys.getenv("MYSQL_PW")
 )
 
-dat1 = data.table(dbGetQuery(con, "SELECT * FROM usr_p117892_3.destatis_b2;"))
-pdat = copy(dat1[!is.na(value)])
+dat1 = data.table(
+  dbGetQuery(
+    con, "SELECT * FROM inek_merkmale_weekly;"))
+dat2 = data.table(
+  dbGetQuery(
+    con, "SELECT * FROM inek_diagnosen_weekly;"))
+dat3 = data.table(
+  dbGetQuery(
+    con, "SELECT * FROM inek_fallzahlen_weekly';"))
 
