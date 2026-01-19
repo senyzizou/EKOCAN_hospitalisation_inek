@@ -1,0 +1,31 @@
+# R-spezifische Dateien
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+.Renviron
+
+# Betriebssystem-/Editor-Dateien
+.DS_Store
+Thumbs.db
+
+# sensible Datenquellen
+*.rds
+*.sav
+*.dta
+*.xlsx
+*.csv
+*.txt
+*.log
+
+# temporäre Dateien
+*.tmp
+*.bak
+*.swp
+
+# Git-spezifisch
+*.lock
+
+# Ordner
+data/
+output/
