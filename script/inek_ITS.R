@@ -238,7 +238,7 @@ prim_adult_pt = ggplot(itsadult1, aes(x = week_start)) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
   labs(
     x = "",
-    y = "Rate per 1,000 all-cause intakes",
+    y = "Rate per 1,000 all-cause admissions",
     #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
     #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
     ) +
@@ -246,7 +246,7 @@ prim_adult_pt = ggplot(itsadult1, aes(x = week_start)) +
   theme(
     legend.position = "none",
     strip.text = element_text(size = 13)
-  )
+  ); prim_adult_pt
 
 ggsave(
   filename = paste0("plots/GAM_InEK_primary_", DATE, ".svg"),
@@ -351,7 +351,7 @@ prim_minor_pt = ggplot(itsminor1, aes(x = week_start)) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
   labs(
     x = "",
-    y = "Rate per 1,000 all-cause intakes",
+    y = "Rate per 1,000 all-cause admissions",
     #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
     #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
   ) +
@@ -359,7 +359,7 @@ prim_minor_pt = ggplot(itsminor1, aes(x = week_start)) +
   theme(
     legend.position = "none",
     strip.text = element_text(size = 13)
-  )
+  ); prim_minor_pt
 
 ggsave(
   filename = paste0("plots/GAM_InEK_primary_minor_", DATE, ".svg"),
@@ -482,7 +482,7 @@ sec_pt = ggplot(itsintox1, aes(x = week_start)) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
   labs(
     x = "",
-    y = "Rate per 1,000 all-cause intakes",
+    y = "Rate per 1,000 all-cause admissions",
     #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
     #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
   ) +
@@ -490,7 +490,7 @@ sec_pt = ggplot(itsintox1, aes(x = week_start)) +
   theme(
     legend.position = "none",
     strip.text = element_text(size = 13)
-  )
+  ); sec_pt
 
 ggsave(
   filename = paste0("plots/GAM_InEK_secondary_intox_", DATE, ".svg"),
@@ -613,7 +613,7 @@ sec2_pt = ggplot(itspsych1, aes(x = week_start)) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
   labs(
     x = "",
-    y = "Rate per 1,000 all-cause intakes",
+    y = "Rate per 1,000 all-cause admissions",
     #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
     #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
   ) +
@@ -621,7 +621,7 @@ sec2_pt = ggplot(itspsych1, aes(x = week_start)) +
   theme(
     legend.position = "none",
     strip.text = element_text(size = 13)
-  )
+  ); sec2_pt
 
 ggsave(
   filename = paste0("plots/GAM_InEK_secondary_psych_", DATE, ".svg"),
