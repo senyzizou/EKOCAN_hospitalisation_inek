@@ -141,8 +141,8 @@ intervention_date = as.Date("2024-04-01")
 itsadult = itsadult %>%
   mutate(
     week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
-    week_end = week_start + 6,
-    woy = kw) %>% 
+    week_end = week_start + 6) %>% 
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
   arrange(week_start) %>%
   mutate(t_idx = row_number())
 
@@ -164,9 +164,9 @@ itsadult = itsadult %>%
 # control
 itsadult %>%
   filter(week_start <= intervention_date & intervention_date <= week_end) %>%
-  select(jahr, kw, week_start, week_end, t_idx, post, time_after)
+  select(year, woy, week_start, week_end, t_idx, post, time_after)
 
-## ITS GAM 
+## ITS GAM <--------------------------------------------------------------------
 prim_adult = gam(
   Y_primary ~ post + time_after + t_idx + 
     s(woy, bs = "cc", k = 30) +
@@ -230,7 +230,7 @@ itsadult1 = itsadult1 %>%
     rate_hat = 1000 * mu_hat / N_all,
     rate_cf = 1000 * mu_cf / N_all)
 
-ggplot(itsadult1, aes(x = week_start)) +
+prim_adult_pt = ggplot(itsadult1, aes(x = week_start)) +
   geom_vline(xintercept = intervention_date) +
   geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
   geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
@@ -265,8 +265,8 @@ intervention_date = as.Date("2024-04-01")
 itsminor = itsminor %>%
   mutate(
     week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
-    week_end = week_start + 6,
-    woy = kw) %>% 
+    week_end = week_start + 6) %>% 
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
   arrange(week_start) %>%
   mutate(t_idx = row_number())
 
@@ -288,9 +288,9 @@ itsminor = itsminor %>%
 # control
 itsminor %>%
   filter(week_start <= intervention_date & intervention_date <= week_end) %>%
-  select(jahr, kw, week_start, week_end, t_idx, post, time_after)
+  select(year, woy, week_start, week_end, t_idx, post, time_after)
 
-## ITS GAM 
+## ITS GAM <--------------------------------------------------------------------
 prim_minor = gam(
   Y_primary ~ post + time_after + t_idx + 
     s(woy, bs = "cc", k = 50) +
@@ -343,7 +343,7 @@ itsminor1 = itsminor1 %>%
     rate_hat = 1000 * mu_hat / N_all,
     rate_cf = 1000 * mu_cf / N_all)
 
-ggplot(itsminor1, aes(x = week_start)) +
+prim_minor_pt = ggplot(itsminor1, aes(x = week_start)) +
   geom_vline(xintercept = intervention_date) +
   geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
   geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
@@ -373,7 +373,130 @@ ggsave(
 
 # 4) ITS: secondary analysis 1: F12.0 + T40.7 rate
 # ______________________________________________________________________________________________________________________
+itsintox = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(20:21))) %>% # remove last 2 observations
+  select(-Y_primary, -Y_psych)
 
+## intervention
+intervention_date = as.Date("2024-04-01")
+
+itsintox = itsintox %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>% 
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+## t0
+t0 = itsintox %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+# check
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsintox = itsintox %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+# control
+itsintox %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  select(year, woy, week_start, week_end, t_idx, post, time_after)
+
+## ITS GAM <--------------------------------------------------------------------
+sec_adult = gam(
+  Y_intox ~ post + time_after + t_idx + 
+    s(woy, bs = "cc", k = 52) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsintox,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5)),
+)
+gam.check(sec_adult)
+
+cf = coef(sec_adult); V = vcov(sec_adult); se = sqrt(diag(V))
+
+eff_h = \(h) {
+  b  = cf["post"] + h * cf["time_after"]
+  se = sqrt(V["post","post"] + h ^ 2 * V["time_after","time_after"] + 
+              2 * h * V["post","time_after"])
+  tibble(
+    h_weeks = h, 
+    RR = exp(b), 
+    RR_l = exp(b - 1.96 * se), 
+    RR_u = exp(b + 1.96 * se))
+}
+
+bind_rows(eff_h(0), eff_h(13), eff_h(26), eff_h(52))
+
+## rate ratios
+rr_adult_sec = tibble(
+  term = names(cf),
+  est = cf, 
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_adult_sec
+
+coef(sec_adult)[c("t_idx","post","time_after")]
+gam.check(sec_adult)
+acf(residuals(sec_adult, type = "pearson"), 
+    na.action = na.pass, main = "ACF der Residuen (Intox)")
+pacf(residuals(sec_adult, type = "pearson"), 
+     na.action = na.pass, main = "pACF der Residuen (Intox)")
+
+itsintox1 = itsintox %>%
+  mutate(mu_hat = predict(sec_adult, type = "response"))
+
+## counterfactual
+itsintox_cf = itsintox1
+itsintox_cf$post[itsintox_cf$t_idx >= t0] = 0L
+itsintox_cf$time_after[itsintox_cf$t_idx >= t0] = 0L
+
+itsintox1 = itsintox1 %>%
+  mutate(
+    mu_cf = predict(sec_adult, newdata = itsintox_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_intox / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+sec_pt = ggplot(itsintox1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause intakes",
+    #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
+    #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  )
+
+ggsave(
+  filename = paste0("plots/GAM_InEK_secondary_intox_", DATE, ".svg"),
+  width = 14,
+  height = 8
+)
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -381,8 +504,133 @@ ggsave(
 
 # 5) ITS: secondary analysis 2: F12.5 rate
 # ______________________________________________________________________________________________________________________
+itspsych = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(20:21))) %>% # remove last 2 observations
+  select(-Y_primary, -Y_intox)
 
+## intervention
+intervention_date = as.Date("2024-04-01")
 
+itspsych = itspsych %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>% 
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+## t0
+t0 = itspsych %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+# check
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itspsych = itspsych %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+# control
+itspsych %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  select(year, woy, week_start, week_end, t_idx, post, time_after)
+
+## ITS GAM <--------------------------------------------------------------------
+sec2_adult = gam(
+  Y_psych ~ post + time_after + t_idx + 
+    s(woy, bs = "cc", k = 20) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itspsych,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5)),
+)
+gam.check(sec2_adult)
+
+cf = coef(sec2_adult); V = vcov(sec2_adult); se = sqrt(diag(V))
+
+eff_h = \(h) {
+  b  = cf["post"] + h * cf["time_after"]
+  se = sqrt(V["post","post"] + h ^ 2 * V["time_after","time_after"] + 
+              2 * h * V["post","time_after"])
+  tibble(
+    h_weeks = h, 
+    RR = exp(b), 
+    RR_l = exp(b - 1.96 * se), 
+    RR_u = exp(b + 1.96 * se))
+}
+
+bind_rows(eff_h(0), eff_h(13), eff_h(26), eff_h(52))
+
+## rate ratios
+rr_adult_sec2 = tibble(
+  term = names(cf),
+  est = cf, 
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_adult_sec2
+
+coef(sec2_adult)[c("t_idx","post","time_after")]
+gam.check(sec2_adult)
+acf(residuals(sec2_adult, type = "pearson"), 
+    na.action = na.pass, main = "ACF der Residuen (Psych)")
+pacf(residuals(sec2_adult, type = "pearson"), 
+     na.action = na.pass, main = "pACF der Residuen (Psych)")
+
+itspsych1 = itspsych %>%
+  mutate(mu_hat = predict(sec2_adult, type = "response"))
+
+## counterfactual
+itspsych_cf = itspsych1
+itspsych_cf$post[itspsych_cf$t_idx >= t0] = 0L
+itspsych_cf$time_after[itspsych_cf$t_idx >= t0] = 0L
+
+itspsych1 = itspsych1 %>%
+  mutate(
+    mu_cf = predict(sec2_adult, newdata = itspsych_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_psych / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+sec2_pt = ggplot(itspsych1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause intakes",
+    #title = "ITS-GAM: Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
+    #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  )
+
+ggsave(
+  filename = paste0("plots/GAM_InEK_secondary_psych_", DATE, ".svg"),
+  width = 14,
+  height = 8
+)
+
+rr_adult; rr_adult_sec; rr_adult_sec2
+prim_adult_pt; sec_pt; sec2_pt
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
