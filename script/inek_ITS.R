@@ -19,7 +19,7 @@ rm(list=ls())
 packages = c(
   "data.table", "ggplot2", "ggthemes", "Hmisc", "mgcv", "DBI", "RMariaDB", 
   "lubridate", "dplyr", "tidyr", "ISOweek", "stringr", "flextable",
-  "officer")
+  "officer", "svglite")
 
 # Install packages not yet installed
 installed_packages = packages %in% rownames(installed.packages())
@@ -76,6 +76,8 @@ dbDisconnect(con); rm(con)
 
 # 2) PREPARE DATA
 # ______________________________________________________________________________________________________________________
+## intervention
+intervention_date = as.Date("2024-04-01")
 
 ## F12.0 & T40.7 transformation
 dat2 = input2 %>%
@@ -114,15 +116,26 @@ y_psy = dat2 %>%
   group_by(across(all_of(key_vars))) %>%
   summarize(Y_psych = sum(fallzahl, na.rm = T), .groups = "drop")
 
+## F12.2
+y_dep = dat2 %>%
+  filter(
+    subset == "F12.X_T40.7",
+    icd_code == "F12.2", 
+    altergruppe == "adult") %>%
+  group_by(across(all_of(key_vars))) %>%
+  summarize(Y_dep = sum(fallzahl, na.rm = T), .groups = "drop")
+
 ## join 
 dt = all %>%
   left_join(y_prim, by = key_vars) %>%
   left_join(y_intox, by = key_vars) %>%
   left_join(y_psy, by = key_vars) %>%
+  left_join(y_dep, by = key_vars) %>%
   mutate(
     Y_primary = replace_na(Y_primary, 0L),
     Y_intox = replace_na(Y_intox, 0L),
-    Y_psych = replace_na(Y_psych, 0L))
+    Y_psych = replace_na(Y_psych, 0L),
+    Y_dep = replace_na(Y_dep, 0L))
 
 ## check up
 dt_check = dt %>%
@@ -254,6 +267,10 @@ acf(residuals(prim_adult, type = "pearson"),
     na.action = na.pass, main = "ACF der Residuen (Primary)")
 pacf(residuals(prim_adult, type = "pearson"), 
     na.action = na.pass, main = "pACF der Residuen (Primary)")
+acf(residuals(prim_adult, type = "pearson"), 
+    plot = F, na.action = na.pass)$acf[1:20]
+pacf(residuals(prim_adult, type = "pearson"),
+     plot = F, na.action = na.pass)$acf[1:20]
 
 itsadult1 = itsadult %>%
   mutate(mu_hat = predict(prim_adult, type = "response"))
@@ -289,10 +306,19 @@ prim_adult_pt = ggplot(itsadult1, aes(x = week_start)) +
     strip.text = element_text(size = 13)
   ); prim_adult_pt
 
+# svg
 ggsave(
   filename = paste0("plots/GAM_InEK_primary_", DATE, ".svg"),
   width = 14,
   height = 8
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/GAM_InEK_primary_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
 )
 
 ## adolescents <----------------------------------------------------------------
@@ -368,6 +394,11 @@ acf(residuals(prim_minor, type = "pearson"),
 pacf(residuals(prim_minor, type = "pearson"), 
      na.action = na.pass, main = "pACF of residuals (Primary, minor)")
 
+acf(residuals(prim_minor, type = "pearson"), 
+    plot = F, na.action = na.pass)$acf[1:20]
+pacf(residuals(prim_minor, type = "pearson"),
+     plot = F, na.action = na.pass)$acf[1:20]
+
 itsminor1 = itsminor %>%
   mutate(mu_hat = predict(prim_minor, type = "response"))
 
@@ -402,10 +433,19 @@ prim_minor_pt = ggplot(itsminor1, aes(x = week_start)) +
     strip.text = element_text(size = 13)
   ); prim_minor_pt
 
+# svg
 ggsave(
   filename = paste0("plots/GAM_InEK_primary_minor_", DATE, ".svg"),
   width = 14,
   height = 8
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/GAM_InEK_primary_minor_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
 )
 
 # ==================================================================================================================================================================
@@ -497,6 +537,11 @@ acf(residuals(sec_adult, type = "pearson"),
 pacf(residuals(sec_adult, type = "pearson"), 
      na.action = na.pass, main = "pACF der Residuen (Intox)")
 
+acf(residuals(sec_adult, type = "pearson"), 
+    plot = F, na.action = na.pass)$acf[1:20]
+pacf(residuals(sec_adult, type = "pearson"),
+     plot = F, na.action = na.pass)$acf[1:20]
+
 itsintox1 = itsintox %>%
   mutate(mu_hat = predict(sec_adult, type = "response"))
 
@@ -531,10 +576,19 @@ sec_pt = ggplot(itsintox1, aes(x = week_start)) +
     strip.text = element_text(size = 13)
   ); sec_pt
 
+# svg
 ggsave(
   filename = paste0("plots/GAM_InEK_secondary_intox_", DATE, ".svg"),
   width = 14,
   height = 8
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/GAM_InEK_secondary_intox_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
 )
 
 # ==================================================================================================================================================================
@@ -626,6 +680,11 @@ acf(residuals(sec2_adult, type = "pearson"),
 pacf(residuals(sec2_adult, type = "pearson"), 
      na.action = na.pass, main = "pACF der Residuen (Psych)")
 
+acf(residuals(sec2_adult, type = "pearson"), 
+    plot = F, na.action = na.pass)$acf[1:20]
+pacf(residuals(sec2_adult, type = "pearson"),
+     plot = F, na.action = na.pass)$acf[1:20]
+
 itspsych1 = itspsych %>%
   mutate(mu_hat = predict(sec2_adult, type = "response"))
 
@@ -660,15 +719,140 @@ sec2_pt = ggplot(itspsych1, aes(x = week_start)) +
     strip.text = element_text(size = 13)
   ); sec2_pt
 
+# svg
 ggsave(
   filename = paste0("plots/GAM_InEK_secondary_psych_", DATE, ".svg"),
   width = 14,
   height = 8
 )
 
+# tiff
+ggsave(
+  filename = paste0("plots/GAM_InEK_secondary_psych_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
+)
+
 rr_adult; rr_adult_sec; rr_adult_sec2
 prim_adult_pt; prim_minor_pt; sec_pt; sec2_pt
 
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 5b) POST-HOC ANALYSIS: F12.2 (adults only)
+# ______________________________________________________________________________________________________________________
+itsdep = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+
+itsdep = itsdep %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>%
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+t0 = itsdep %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsdep = itsdep %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+## ITS GAM <--------------------------------------------------------------------
+dep_adult = gam(
+  Y_dep ~ post + time_after + t_idx +
+    s(woy, bs = "cc", k = 30) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsdep,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5))
+)
+
+cf = coef(dep_adult); V = vcov(dep_adult); se = sqrt(diag(V))
+
+rr_dep_adult = tibble(
+  term = names(cf),
+  est = cf,
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_dep_adult
+
+coef(dep_adult)[c("t_idx", "post", "time_after")]
+gam.check(dep_adult)
+
+acf(residuals(dep_adult, type = "pearson"),
+    na.action = na.pass, main = "ACF of residuals (F12.2, adults)")
+pacf(residuals(dep_adult, type = "pearson"),
+     na.action = na.pass, main = "pACF of residuals (F12.2, adults)")
+
+acf(residuals(dep_adult, type = "pearson"), 
+    plot = F, na.action = na.pass)$acf[1:20]
+pacf(residuals(dep_adult, type = "pearson"),
+     plot = F, na.action = na.pass)$acf[1:20]
+
+## plot
+itsdep1 = itsdep %>%
+  mutate(mu_hat = predict(dep_adult, type = "response"))
+
+itsdep_cf = itsdep1
+itsdep_cf$post[itsdep_cf$t_idx >= t0] = 0L
+itsdep_cf$time_after[itsdep_cf$t_idx >= t0] = 0L
+
+itsdep1 = itsdep1 %>%
+  mutate(
+    mu_cf = predict(dep_adult, newdata = itsdep_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_dep / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+dep_pt = ggplot(itsdep1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); dep_pt
+
+# svg
+ggsave(
+  filename = paste0("plots/GAM_InEK_posthoc_F12_2_adults_", DATE, ".svg"),
+  width = 14,
+  height = 8
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/GAM_InEK_posthoc_F12_2_adults_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
+)
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -747,11 +931,20 @@ itsa_facet = ggplot(plot_long, aes(x = week_start, y = rate)) +
 
 itsa_facet
 
+# svg
 ggsave(
   filename = paste0("plots/ITSA_facets_4panels_", DATE, ".svg"),
   plot = itsa_facet,
   width = 14,
   height = 9
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/ITSA_facets_4panels_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
 )
 
 ## Result table <---------------------------------------------------------------
@@ -821,7 +1014,7 @@ ft2 = tab2 %>%
   autofit()
 
 ft2
-save_as_docx(ft2, path = paste0("Table_model_results_", DATE, ".docx"))
+# save_as_docx(ft2, path = paste0("Table_model_results_", DATE, ".docx"))
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1118,6 +1311,7 @@ dt_sys = all_sys %>%
     Y_psych = replace_na(Y_psych, 0L))
 
 sens_sys_res = data.table()
+sens_model_list = list()
 
 for (q in sort(unique(dt_sys$quelle))) {
   
@@ -1153,7 +1347,7 @@ for (q in sort(unique(dt_sys$quelle))) {
     method = "REML",
     knots = list(woy = c(0.5, 52.5))
   )
-  
+  sens_model_list[[paste(q, "Primary (adults)", sep = " | ")]] = m_ad
   r_post = get_rr(m_ad, "post")
   r_ta   = get_rr(m_ad, "time_after")
   
@@ -1197,7 +1391,7 @@ for (q in sort(unique(dt_sys$quelle))) {
     method = "REML",
     knots = list(woy = c(0.5, 52.5))
   )
-  
+  sens_model_list[[paste(q, "Primary (adolescents)", sep = " | ")]] = m_mi
   r_post = get_rr(m_mi, "post")
   r_ta = get_rr(m_mi, "time_after")
   
@@ -1221,7 +1415,7 @@ for (q in sort(unique(dt_sys$quelle))) {
     method = "REML",
     knots = list(woy = c(0.5, 52.5))
   )
-  
+  sens_model_list[[paste(q, "Secondary 1", sep = " | ")]] = m_s1
   r_post = get_rr(m_s1, "post")
   r_ta = get_rr(m_s1, "time_after")
   
@@ -1244,7 +1438,7 @@ for (q in sort(unique(dt_sys$quelle))) {
     method = "REML",
     knots = list(woy = c(0.5, 52.5))
   )
-  
+  sens_model_list[[paste(q, "Secondary 2", sep = " | ")]] = m_s2
   r_post = get_rr(m_s2, "post")
   r_ta = get_rr(m_s2, "time_after")
   
@@ -1268,53 +1462,42 @@ sens_sys_res = sens_sys_res %>%
 sens_sys_res
 
 ## plots
-p_sys_level = ggplot(
-  sens_sys_res %>% filter(term == "post"),
-  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
-) +
+sens_sys_plot = sens_sys_res %>%
+  mutate(
+    term_lab = factor(
+      term,
+      levels = c("post", "time_after"),
+      labels = c("Level change (β_level)", "Slope change (β_trend)")),
+    outcome = factor(outcome, levels = outcome_levels))
+
+p_sys_combined = ggplot(
+  sens_sys_plot,
+  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)) +
   geom_hline(yintercept = 1, linetype = "dashed") +
-  geom_pointrange(position = position_dodge(width = 0.4)) +
-  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
+  geom_pointrange(position = position_dodge(width = 0.35)) +
+  facet_grid(term_lab ~ outcome, scales = "free_y") +
   labs(
     x = "Reimbursement system",
-    y = "Rate ratio"
-  ) +
+    y = "Rate ratio") +
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 13)
-  ); p_sys_level
+    strip.text = element_text(size = 12)); p_sys_combined
 
+# svg
 ggsave(
-  filename = paste0("plots/sensitivity_source_level_", DATE, ".svg"),
-  plot = p_sys_level,
-  width = 14,
-  height = 8
+  filename = paste0("plots/sensitivity_source_combined_", DATE, ".svg"),
+  plot = p_sys_combined,
+  width = 16,
+  height = 9
 )
 
-
-p_sys_trend = ggplot(
-  sens_sys_res %>% filter(term == "time_after"),
-  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
-) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  geom_pointrange(position = position_dodge(width = 0.4)) +
-  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
-  labs(
-    x = "Reimbursement system",
-    y = "Rate ratio"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(size = 13)
-  ); p_sys_trend
-
+# tiff
 ggsave(
-  filename = paste0("plots/sensitivity_source_trend_", DATE, ".svg"),
-  plot = p_sys_trend,
+  filename = paste0("plots/sensitivity_source_combined_", DATE, ".tiff"),
   width = 14,
-  height = 8
+  height = 8,
+  dpi = 300
 )
 
 ## source table <---------------------------------------------------------------
@@ -1356,7 +1539,162 @@ ft_sens_sys = sens_sys_tab_wide %>%
   autofit()
 
 ft_sens_sys
-save_as_docx(ft_sens_sys, path = paste0("sens_table_model_results_", DATE, ".docx"))
+# save_as_docx(ft_sens_sys, path = paste0("sens_table_model_results_", DATE, ".docx"))
+
+## model information <----------------------------------------------------------
+get_model_info = \(mod, model_name, source_name = NA_character_) {
+  
+  sm = summary(mod)
+  
+  # parametric terms
+  pt = as.data.frame(sm$p.table)
+  pt$term = rownames(pt)
+  rownames(pt) = NULL
+  
+  names(pt) = c("Estimate", "Std_Error", "Statistic", "p_value", "term")
+  
+  pt = pt %>%
+    mutate(
+      term = case_when(
+        term == "(Intercept)" ~ "Intercept",
+        term == "post" ~ "β_level",
+        term == "time_after" ~ "β_trend",
+        term == "t_idx" ~ "time index",
+        T ~ term),
+      Source = source_name,
+      Model = model_name,
+      n = nobs(mod),
+      `adj. R²` = if (!is.null(sm$r.sq)) sm$r.sq else NA_real_) %>%
+    select(
+      Source, Model, n, term, Estimate, Std_Error, 
+      Statistic, p_value, `adj. R²`)
+  
+  # smooth term
+  if (!is.null(sm$s.table)) {
+    st = as.data.frame(sm$s.table)
+    st$term = rownames(st)
+    rownames(st) = NULL
+    
+    nms = names(st)
+    names(st)[grepl("edf", nms, ignore.case = T)][1] = "edf"
+    names(st)[grepl("Ref.df", nms, ignore.case = T)][1] = "Ref_df"
+    names(st)[grepl("^F$|Chi.sq", nms, ignore.case = T)][1] = "Statistic"
+    names(st)[grepl("p-value", nms, ignore.case = T)][1] = "p_value"
+    
+    smooth_row = tibble(
+      Source = source_name,
+      Model = model_name,
+      n = nobs(mod),
+      term = "calendar week",
+      Estimate = NA_real_,
+      Std_Error = NA_real_,
+      Statistic = st$Statistic[1],
+      p_value = st$p_value[1],
+      `adj. R²` = if (!is.null(sm$r.sq)) sm$r.sq else NA_real_) %>%
+      select(Source, Model, n, term, Estimate, Std_Error, Statistic, p_value, `adj. R²`)
+    
+    pt = bind_rows(pt, smooth_row)
+  }
+  pt
+}
+
+## main model
+main_model_info = bind_rows(
+  get_model_info(prim_adult, "Primary (adults)"),
+  get_model_info(prim_minor, "Primary (adolescents)"),
+  get_model_info(sec_adult, "Secondary 1"),
+  get_model_info(sec2_adult, "Secondary 2")
+)
+main_model_info = main_model_info[,-1]
+
+ft_main_info = main_model_info %>%
+  mutate(
+    Estimate = round(Estimate, 4),
+    Std_Error = round(Std_Error, 4),
+    Statistic = round(Statistic, 3),
+    `adj. R²` = round(`adj. R²`, 3),
+    p_value = case_when(
+      is.na(p_value) ~ NA_character_,
+      p_value < 0.001 ~ "<0.001",
+      T ~ sprintf("%.3f", p_value))) %>%
+  flextable() %>%
+  set_header_labels(
+    model = "Model",
+    n = "n",
+    term = "Term",
+    Estimate = "Estimate",
+    Std_Error = "Std. Error",
+    Statistic = "Statistic",
+    p_value = "p-value",
+    `adj. R²` = "adj. R²") %>%
+  border_remove() %>%
+  border_outer(part = "all", border = fp_border(color = "black", width = 1)) %>%
+  border_inner_h(part = "all", border = fp_border(color = "black", width = 0.8)) %>%
+  border_inner_v(part = "all", border = fp_border(color = "black", width = 0.8)) %>%
+  bold(part = "header") %>%
+  align(align = "center", part = "header") %>%
+  autofit(); ft_main_info
+
+#save_as_docx(
+#  ft_main_info,
+#  path = paste0("supp_table_main_model_info_", DATE, ".docx")
+#)
+
+## sensitivity info <-----------------------------------------------------------
+sens_model_info = bind_rows(lapply(names(sens_model_list), \(nm) {
+  parts = strsplit(nm, " \\| ")[[1]]
+  src = parts[1]
+  modlab = parts[2]
+  
+  get_model_info(
+    mod = sens_model_list[[nm]],
+    model_name = modlab,
+    source_name = src)
+}))
+
+sens_model_info
+
+ft_sens_model_info = sens_model_info %>%
+  mutate(
+    Model = case_when(
+      Model == "Primary (adults)" ~ "P (adult)",
+      Model == "Primary (adolescents)" ~ "P (minor)",
+      Model == "Secondary 1" ~ "S1",
+      Model == "Secondary 2" ~ "S2",
+      T ~ Model),
+    Estimate = round(Estimate, 4),
+    Std_Error = round(Std_Error, 4),
+    Statistic = round(Statistic, 3),
+    `adj. R²` = round(`adj. R²`, 3),
+    p_value = case_when(
+      is.na(p_value) ~ NA_character_,
+      p_value < 0.001 ~ "<0.001",
+      T ~ sprintf("%.3f", p_value))) %>%
+  flextable() %>%
+  set_header_labels(
+    Source = "Source",
+    Model = "Model",
+    n = "n",
+    term = "Term",
+    Estimate = "Estimate",
+    Std_Error = "Std. Error",
+    Statistic = "Statistic",
+    p_value = "p-value",
+    `adj. R²` = "adj. R²") %>%
+  border_remove() %>%
+  border_outer(part = "all", border = fp_border(color = "black", width = 1)) %>%
+  border_inner_h(part = "all", border = fp_border(color = "black", width = 0.8)) %>%
+  border_inner_v(part = "all", border = fp_border(color = "black", width = 0.8)) %>%
+  bold(part = "header") %>%
+  align(align = "center", part = "header") %>%
+  autofit()
+
+ft_sens_model_info
+
+#save_as_docx(
+#  ft_sens_model_info,
+#  path = paste0("sens_table_full_model_info_", DATE, ".docx")
+#)
 
 ## Placebo test <---------------------------------------------------------------
 get_t0 = \(d) {
@@ -1542,11 +1880,20 @@ p_placebo_level = ggplot(
     legend.position = "none",
     strip.text = element_text(size = 13)); p_placebo_level
 
+# svg
 ggsave(
   filename = paste0("plots/placebo_level_", DATE, ".svg"),
   plot = p_placebo_level,
   width = 14,
   height = 8
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/placebo_level_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
 )
 
 p_placebo_trend = ggplot(
@@ -1567,12 +1914,197 @@ p_placebo_trend = ggplot(
     legend.position = "none",
     strip.text = element_text(size = 13)); p_placebo_trend
 
+# svg
 ggsave(
   filename = paste0("plots/placebo_trend_", DATE, ".svg"),
   plot = p_placebo_trend,
   width = 14,
   height = 8
 )
+
+# tiff
+ggsave(
+  filename = paste0("plots/placebo_trend_", DATE, ".tiff"),
+  width = 14,
+  height = 8,
+  dpi = 300
+)
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 9) SUPPLEMENT
+# ______________________________________________________________________________________________________________________
+
+## ACF, pACF, QQ plots <--------------------------------------------------------
+labs = c(
+  primary_adult = "Primary (adults)",
+  primary_minor = "Primary (adolescents)",
+  secondary1 = "Secondary 1",
+  secondary2 = "Secondary 2"
+)
+
+mods = list(
+  primary_adult = prim_adult,
+  primary_minor = prim_minor,
+  secondary1 = sec_adult,
+  secondary2 = sec2_adult
+)
+
+# get residuals
+get_rsd = \(m, outcome_name) {
+  if (outcome_name == "secondaryA") {
+    rsd = m$std.rsd
+    if (is.null(rsd)) rsd = residuals(m, type = "pearson")
+  } else {
+    rsd = residuals(m, type = "pearson")
+  }
+  rsd
+}
+
+max_lag = 24 # months
+dir.create("plots", showWarnings = F, recursive = T)
+
+## ACF
+# svg
+svglite(
+  file = paste0(
+    "plots/ACF_primary_analysis_", DATE, ".svg"),
+  width = 12, height = 7
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  acf(rsd, lag.max = max_lag, na.action = na.pass, 
+      main = paste0("ACF: ", labs[[nm]]))
+}
+
+par(op)
+dev.off()
+
+# tiff
+tiff(
+  filename = paste0(
+    "plots/ACF_primary_analysis_", DATE, ".tiff"),
+  width = 12, height = 7, units = "in", res = 300
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  acf(rsd, lag.max = max_lag, na.action = na.pass,
+      main = paste0("ACF: ", labs[[nm]]))
+}
+
+par(op)
+dev.off()
+
+## pACF
+# svg
+svglite(
+  file = paste0(
+    "plots/pACF_primary_analysis_", DATE, ".svg"),
+  width = 12, height = 7
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  pacf(rsd, lag.max = max_lag, na.action = na.pass, 
+       main = paste0("pACF: ", labs[[nm]]))
+}
+
+par(op)
+dev.off()
+
+# tiff
+tiff(
+  filename = paste0(
+    "plots/pACF_primary_analysis_", DATE, ".tiff"),
+  width = 12, height = 7, units = "in", res = 300
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  pacf(rsd, lag.max = max_lag, na.action = na.pass,
+       main = paste0("pACF: ", labs[[nm]]))
+}
+
+par(op)
+dev.off()
+
+## QQ 
+# svg
+svglite(
+  file = paste0(
+    "plots/QQ_primary_analysis_", DATE, ".svg"),
+  width = 12, height = 7
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  qqnorm(rsd, main = paste0("QQ: ", labs[[nm]]))
+  qqline(rsd)
+}
+
+par(op)
+dev.off()
+
+# tiff
+tiff(
+  filename = paste0(
+    "plots/QQ_primary_analysis_", DATE, ".tiff"),
+  width = 12, height = 7, units = "in", res = 300
+)
+
+op = par(no.readonly = T)
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), oma = c(0, 0, 2, 0))
+
+for (nm in names(mods)) {
+  rsd = get_rsd(mods[[nm]], nm)
+  qqnorm(rsd, main = paste0("QQ: ", labs[[nm]]))
+  qqline(rsd)
+}
+
+par(op)
+dev.off()
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 10) SUPPLEMENTARY TABLE 2
+# ______________________________________________________________________________________________________________________
+supp_diag = dat2 %>%
+  filter(
+    icd_code %in% c(paste0("F12.", 0:9), "T40.7"),
+    !(jahr == 2025 & kw %in% c(20:21))) %>%
+  group_by(icd_code, diagnose) %>%
+  summarize(
+    Total = sum(fallzahl, na.rm = T),
+    Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+    Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+    DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+    PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T),
+    .groups = "drop") %>%
+  arrange(icd_code)
+
+supp_diag
+
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1872,6 +2404,56 @@ ggplot(itsdat2, aes(x = week_start)) +
 
 ggsave(
   filename = paste0("plots/GAM_InEK_primary_AR1_", DATE, ".svg"),
+  width = 14,
+  height = 8
+)
+
+## old plots <------------------------------------------------------------------
+p_sys_level = ggplot(
+  sens_sys_res %>% filter(term == "post"),
+  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
+) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(position = position_dodge(width = 0.4)) +
+  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
+  labs(
+    x = "Reimbursement system",
+    y = "Rate ratio"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); p_sys_level
+
+ggsave(
+  filename = paste0("plots/sensitivity_source_level_", DATE, ".svg"),
+  plot = p_sys_level,
+  width = 14,
+  height = 8
+)
+
+
+p_sys_trend = ggplot(
+  sens_sys_res %>% filter(term == "time_after"),
+  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
+) +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  geom_pointrange(position = position_dodge(width = 0.4)) +
+  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
+  labs(
+    x = "Reimbursement system",
+    y = "Rate ratio"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); p_sys_trend
+
+ggsave(
+  filename = paste0("plots/sensitivity_source_trend_", DATE, ".svg"),
+  plot = p_sys_trend,
   width = 14,
   height = 8
 )
