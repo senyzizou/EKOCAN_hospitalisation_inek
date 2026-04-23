@@ -125,21 +125,61 @@ y_dep = dat2 %>%
   group_by(across(all_of(key_vars))) %>%
   summarize(Y_dep = sum(fallzahl, na.rm = T), .groups = "drop")
 
+## tertiary outcomes
+y_schizo = dat2 %>%
+  filter(
+    altergruppe == "adult",
+    str_detect(icd_code, "^F2")) %>%
+  group_by(across(all_of(key_vars))) %>%
+  summarize(Y_schizo = sum(fallzahl, na.rm = T), .groups = "drop")
+
+y_alc = dat2 %>%
+  filter(
+    altergruppe == "adult",
+    str_detect(icd_code, "^F10") | str_detect(icd_code, "^T51")) %>%
+  group_by(across(all_of(key_vars))) %>%
+  summarize(Y_alc = sum(fallzahl, na.rm = T), .groups = "drop")
+
+y_anxiety = dat2 %>%
+  filter(
+    altergruppe == "adult",
+    str_detect(icd_code, "^F40") |
+      str_detect(icd_code, "^F41") |
+      icd_code %in% c("F48.8", "F48.9")) %>%
+  group_by(across(all_of(key_vars))) %>%
+  summarize(Y_anxiety = sum(fallzahl, na.rm = T), .groups = "drop")
+
+y_depress = dat2 %>%
+  filter(
+    altergruppe == "adult",
+    str_detect(icd_code, "^F32") |
+      str_detect(icd_code, "^F33")) %>%
+  group_by(across(all_of(key_vars))) %>%
+  summarize(Y_depress = sum(fallzahl, na.rm = T), .groups = "drop")
+
 ## join 
 dt = all %>%
   left_join(y_prim, by = key_vars) %>%
   left_join(y_intox, by = key_vars) %>%
   left_join(y_psy, by = key_vars) %>%
   left_join(y_dep, by = key_vars) %>%
+  left_join(y_schizo, by = key_vars) %>%
+  left_join(y_alc, by = key_vars) %>%
+  left_join(y_anxiety, by = key_vars) %>%
+  left_join(y_depress, by = key_vars) %>%
   mutate(
     Y_primary = replace_na(Y_primary, 0L),
     Y_intox = replace_na(Y_intox, 0L),
     Y_psych = replace_na(Y_psych, 0L),
-    Y_dep = replace_na(Y_dep, 0L))
+    Y_dep = replace_na(Y_dep, 0L),
+    Y_schizo = replace_na(Y_schizo, 0L),
+    Y_alc = replace_na(Y_alc, 0L),
+    Y_anxiety = replace_na(Y_anxiety, 0L),
+    Y_depress = replace_na(Y_depress, 0L))
 
 ## check up
 dt_check = dt %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) %>%
+  filter(!(jahr == 2025 & kw %in% c(38:39))) %>%
   mutate(
     week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
     week_end = week_start + 6)
@@ -187,7 +227,7 @@ pct_adults
 ## adults <---------------------------------------------------------------------
 itsadult = copy(dt) %>%
   filter(altergruppe == "adult") %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 observations
 
 ## intervention
 intervention_date = as.Date("2024-04-01")
@@ -324,7 +364,7 @@ ggsave(
 ## adolescents <----------------------------------------------------------------
 itsminor = copy(dt) %>%
   filter(altergruppe == "minor") %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 observations
 
 ## intervention
 intervention_date = as.Date("2024-04-01")
@@ -456,7 +496,7 @@ ggsave(
 # ______________________________________________________________________________________________________________________
 itsintox = copy(dt) %>%
   filter(altergruppe == "adult") %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 observations
 
 ## intervention
 intervention_date = as.Date("2024-04-01")
@@ -599,7 +639,7 @@ ggsave(
 # ______________________________________________________________________________________________________________________
 itspsych = copy(dt) %>%
   filter(altergruppe == "adult") %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 observations
 
 ## intervention
 intervention_date = as.Date("2024-04-01")
@@ -745,7 +785,7 @@ prim_adult_pt; prim_minor_pt; sec_pt; sec2_pt
 # ______________________________________________________________________________________________________________________
 itsdep = copy(dt) %>%
   filter(altergruppe == "adult") %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 observations
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 observations
 
 itsdep = itsdep %>%
   mutate(
@@ -853,6 +893,363 @@ ggsave(
   height = 8,
   dpi = 300
 )
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 5c) TERTIARY ANALYSIS: Schizophrenia (F2x, adults only)
+# ______________________________________________________________________________________________________________________
+itsschizo = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(32:39)))
+
+itsschizo = itsschizo %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>%
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+t0 = itsschizo %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsschizo = itsschizo %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+## ITS GAM <--------------------------------------------------------------------
+schizo_adult = gam(
+  Y_schizo ~ post + time_after + t_idx +
+    s(woy, bs = "cc", k = 30) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsschizo,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5))
+)
+
+cf = coef(schizo_adult); V = vcov(schizo_adult); se = sqrt(diag(V))
+
+rr_schizo_adult = tibble(
+  term = names(cf),
+  est = cf,
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_schizo_adult
+
+## plot
+itsschizo1 = itsschizo %>%
+  mutate(mu_hat = predict(schizo_adult, type = "response"))
+
+itsschizo_cf = itsschizo1
+itsschizo_cf$post[itsschizo_cf$t_idx >= t0] = 0L
+itsschizo_cf$time_after[itsschizo_cf$t_idx >= t0] = 0L
+
+itsschizo1 = itsschizo1 %>%
+  mutate(
+    mu_cf = predict(schizo_adult, newdata = itsschizo_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_schizo / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+schizo_pt = ggplot(itsschizo1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); schizo_pt
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 5d) TERTIARY ANALYSIS: Alcohol (F10/T51, adults only)
+# ______________________________________________________________________________________________________________________
+itsalc = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(32:39)))
+
+itsalc = itsalc %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>%
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+t0 = itsalc %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsalc = itsalc %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+## ITS GAM <--------------------------------------------------------------------
+alc_adult = gam(
+  Y_alc ~ post + time_after + t_idx +
+    s(woy, bs = "cc", k = 30) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsalc,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5))
+)
+
+cf = coef(alc_adult); V = vcov(alc_adult); se = sqrt(diag(V))
+
+rr_alc_adult = tibble(
+  term = names(cf),
+  est = cf,
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_alc_adult
+
+## plot
+itsalc1 = itsalc %>%
+  mutate(mu_hat = predict(alc_adult, type = "response"))
+
+itsalc_cf = itsalc1
+itsalc_cf$post[itsalc_cf$t_idx >= t0] = 0L
+itsalc_cf$time_after[itsalc_cf$t_idx >= t0] = 0L
+
+itsalc1 = itsalc1 %>%
+  mutate(
+    mu_cf = predict(alc_adult, newdata = itsalc_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_alc / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+alc_pt = ggplot(itsalc1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); alc_pt
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 5e) TERTIARY ANALYSIS: Anxiety disorders (adults only)
+# ______________________________________________________________________________________________________________________
+itsanxiety = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(32:39)))
+
+itsanxiety = itsanxiety %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>%
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+t0 = itsanxiety %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsanxiety = itsanxiety %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+## ITS GAM <--------------------------------------------------------------------
+anxiety_adult = gam(
+  Y_anxiety ~ post + time_after + t_idx +
+    s(woy, bs = "cc", k = 30) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsanxiety,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5))
+)
+
+cf = coef(anxiety_adult); V = vcov(anxiety_adult); se = sqrt(diag(V))
+
+rr_anxiety_adult = tibble(
+  term = names(cf),
+  est = cf,
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_anxiety_adult
+
+## plot
+itsanxiety1 = itsanxiety %>%
+  mutate(mu_hat = predict(anxiety_adult, type = "response"))
+
+itsanxiety_cf = itsanxiety1
+itsanxiety_cf$post[itsanxiety_cf$t_idx >= t0] = 0L
+itsanxiety_cf$time_after[itsanxiety_cf$t_idx >= t0] = 0L
+
+itsanxiety1 = itsanxiety1 %>%
+  mutate(
+    mu_cf = predict(anxiety_adult, newdata = itsanxiety_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_anxiety / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+anxiety_pt = ggplot(itsanxiety1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); anxiety_pt
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 5f) TERTIARY ANALYSIS: Depression (F32-F33, adults only)
+# ______________________________________________________________________________________________________________________
+itsdepress = copy(dt) %>%
+  filter(altergruppe == "adult") %>%
+  filter(!(jahr == 2025 & kw %in% c(32:39)))
+
+itsdepress = itsdepress %>%
+  mutate(
+    week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
+    week_end = week_start + 6) %>%
+  rename(woy = kw, year = jahr, agegroup = altergruppe) %>%
+  arrange(week_start) %>%
+  mutate(t_idx = row_number())
+
+t0 = itsdepress %>%
+  filter(week_start <= intervention_date & intervention_date <= week_end) %>%
+  summarize(t0 = min(t_idx)) %>%
+  pull(t0)
+
+stopifnot(length(t0) == 1, !is.na(t0))
+
+itsdepress = itsdepress %>%
+  mutate(
+    post = as.integer(t_idx >= t0),
+    time_after = pmax(0L, t_idx - t0)) %>%
+  mutate(time_after = if_else(t_idx < t0, 0L, time_after))
+
+## ITS GAM <--------------------------------------------------------------------
+depress_adult = gam(
+  Y_depress ~ post + time_after + t_idx +
+    s(woy, bs = "cc", k = 30) +
+    offset(log(N_all)),
+  family = nb(link = "log"),
+  data = itsdepress,
+  method = "REML",
+  knots = list(woy = c(0.5, 52.5))
+)
+
+cf = coef(depress_adult); V = vcov(depress_adult); se = sqrt(diag(V))
+
+rr_depress_adult = tibble(
+  term = names(cf),
+  est = cf,
+  se = se,
+  lcl = cf - 1.96 * se,
+  ucl = cf + 1.96 * se) %>%
+  mutate(
+    RR = exp(est),
+    RR_l = exp(lcl),
+    RR_r = exp(ucl)) %>%
+  filter(term %in% c("post", "time_after"))
+
+rr_depress_adult
+
+## plot
+itsdepress1 = itsdepress %>%
+  mutate(mu_hat = predict(depress_adult, type = "response"))
+
+itsdepress_cf = itsdepress1
+itsdepress_cf$post[itsdepress_cf$t_idx >= t0] = 0L
+itsdepress_cf$time_after[itsdepress_cf$t_idx >= t0] = 0L
+
+itsdepress1 = itsdepress1 %>%
+  mutate(
+    mu_cf = predict(depress_adult, newdata = itsdepress_cf, type = "response")) %>%
+  mutate(
+    rate_obs = 1000 * Y_depress / N_all,
+    rate_hat = 1000 * mu_hat / N_all,
+    rate_cf = 1000 * mu_cf / N_all)
+
+depress_pt = ggplot(itsdepress1, aes(x = week_start)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
+  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
+  geom_line(aes(y = rate_cf), linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  ); depress_pt
+
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1005,12 +1402,11 @@ tab2 = data.table(
 )
 
 ft2 = tab2 %>%
-  flextable(col_keys = c("Outcome", "n", "β_level", "β_trend")) %>%
+  flextable(col_keys = c("Outcome", "β_level", "β_trend")) %>%
   set_header_labels(
     Outcome = "Outcome",
-    n = "n",
-    beta_level = "β_level: RR (95% CI)",
-    beta_trend = "β_trend: RR (95% CI)") %>%
+    beta_level = "level change: RR (95% CI)",
+    beta_trend = "slope change: RR (95% CI)") %>%
   autofit()
 
 ft2
@@ -1020,10 +1416,140 @@ ft2
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
+# 6b) ITS plots & result table - Tertiary Analysis
+# ______________________________________________________________________________________________________________________
+## harmonize tertiary plots
+p5 = as.data.table(itsschizo1)[, .(
+  week_start,
+  panel = "Schizophrenia",
+  rate_obs, rate_hat, rate_cf
+)]
+
+p6 = as.data.table(itsalc1)[, .(
+  week_start,
+  panel = "Alcohol",
+  rate_obs, rate_hat, rate_cf
+)]
+
+p7 = as.data.table(itsanxiety1)[, .(
+  week_start,
+  panel = "Anxiety",
+  rate_obs, rate_hat, rate_cf
+)]
+
+p8 = as.data.table(itsdepress1)[, .(
+  week_start,
+  panel = "Depression",
+  rate_obs, rate_hat, rate_cf
+)]
+
+plot_dt_ter = rbindlist(list(p5, p6, p7, p8), use.names = T)
+
+plot_long_ter = melt(
+  plot_dt_ter,
+  id.vars = c("week_start", "panel"),
+  measure.vars = c("rate_obs", "rate_hat", "rate_cf"),
+  variable.name = "series",
+  value.name = "rate"
+)
+
+plot_long_ter[, series := factor(
+  series,
+  levels = c("rate_obs", "rate_hat", "rate_cf"),
+  labels = c("Observed", "Fitted", "Counterfactual")
+)]
+
+plot_long_ter[, panel := factor(
+  panel,
+  levels = c("Alcohol", "Anxiety", "Depression", "Schizophrenia")
+)]
+
+## facet plot
+itsa_facet_ter = ggplot(plot_long_ter, aes(x = week_start, y = rate)) +
+  geom_vline(xintercept = intervention_date) +
+  geom_line(
+    data = plot_long_ter[series == "Observed"],
+    linewidth = 0.7, alpha = 0.30, color = pcol) +
+  geom_line(
+    data = plot_long_ter[series == "Fitted"],
+    linewidth = 1.0, alpha = 1.00, color = pcol) +
+  geom_line(
+    data = plot_long_ter[series == "Counterfactual"],
+    linewidth = 1.0, alpha = 1.00, color = pcol, linetype = "22") +
+  facet_wrap(~ panel, ncol = 2, scales = "free_y") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    x = "",
+    y = "Rate per 1,000 all-cause admissions") +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 13)
+  )
+
+itsa_facet_ter
+rr_alc_adult; rr_anxiety_adult; rr_depress_adult; rr_schizo_adult
+
+# svg
+ggsave(
+  filename = paste0("plots/ITSA_facets_tertiary_4panels_", DATE, ".svg"),
+  plot = itsa_facet_ter,
+  width = 14,
+  height = 9
+)
+
+# tiff
+ggsave(
+  filename = paste0("plots/ITSA_facets_tertiary_4panels_", DATE, ".tiff"),
+  plot = itsa_facet_ter,
+  width = 14,
+  height = 9,
+  dpi = 300
+)
+
+## tertiary result table <-------------------------------------------------------
+tab2_ter = data.table(
+  Outcome = c(
+    "Alcohol",
+    "Anxiety",
+    "Depression",
+    "Schizophrenia"),
+  n = c(
+    nobs(alc_adult),
+    nobs(anxiety_adult),
+    nobs(depress_adult),
+    nobs(schizo_adult)),
+  β_level = c(
+    get_term_rr(alc_adult, "post"),
+    get_term_rr(anxiety_adult, "post"),
+    get_term_rr(depress_adult, "post"),
+    get_term_rr(schizo_adult, "post")),
+  β_trend = c(
+    get_term_rr(alc_adult, "time_after"),
+    get_term_rr(anxiety_adult, "time_after"),
+    get_term_rr(depress_adult, "time_after"),
+    get_term_rr(schizo_adult, "time_after"))
+)
+
+ft2_ter = tab2_ter %>%
+  flextable(col_keys = c("Outcome", "β_level", "β_trend")) %>%
+  set_header_labels(
+    Outcome = "Outcome",
+    `β_level` = "level change: RR (95% CI)",
+    `β_trend` = "slope change: RR (95% CI)") %>%
+  autofit()
+
+ft2_ter
+#save_as_docx(ft2_ter, path = paste0("supp_table_tertiary_model_results_", DATE, ".docx"))
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
 # 7) TABLE 1: Descriptives
 # ______________________________________________________________________________________________________________________
 dt0 = copy(dt) %>%
-  filter(!(jahr == 2025 & kw %in% c(20:21))) # remove last 2 obs.
+  filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 obs.
 
 dt0 = as.data.table(dt0)
 dt0[, date := ISOweek2date(sprintf("%d-W%02d-1", jahr, kw))]
@@ -1049,8 +1575,7 @@ age_labs = c(
 )
 
 dt0[, altergruppe_lab := age_labs[altergruppe]]
-names(input2)
-names(dt)
+
 ## actual date version <--------------------------------------------------------
 ## pre/post
 intervention_date = as.Date("2024-04-01")
