@@ -1346,68 +1346,69 @@ ggsave(
 
 ## Result table <---------------------------------------------------------------
 ## help fcts
-fmt_p = \(p) {
-  if (is.na(p)) return(NA_character_)
-  if (p < 0.001) "<0.001" else sprintf("%.3f", p)
+fmt_stars = \(p) {
+  case_when(
+    is.na(p) ~ "",
+    p < 0.001 ~ "***",
+    p < 0.01 ~ "**",
+    p < 0.05 ~ "*",
+    T ~ "")
 }
 
-get_term_rr = \(mod, term) {
+get_term_rr_star = \(mod, term) {
   cf = coef(mod)
   V = vcov(mod)
+  pt = summary(mod)$p.table
   b = unname(cf[term])
   se = sqrt(unname(V[term, term]))
+  p = unname(pt[term, "Pr(>|z|)"])
   rr = exp(b)
   l = exp(b - 1.96 * se)
   u = exp(b + 1.96 * se)
-  sprintf("%.3f (%.3f–%.3f)", rr, l, u)
+  sprintf("%.3f (%.3f–%.3f)%s", rr, l, u, fmt_stars(p))
 }
 
-get_term_se = \(mod, term) {
-  V = vcov(mod)
-  se = sqrt(unname(V[term, term]))
-  sprintf("%.3f", se)
-}
-
-get_swoy_p = \(mod) {
-  st = summary(mod)$s.table
-  if (is.null(st) || nrow(st) == 0) return(NA_character_)
-  rn = rownames(st)
-  i = grep("s\\(woy", rn)
-  if (length(i) == 0) return(NA_character_)
-  fmt_p(st[i[1], "p-value"])
-}
-
-##
 tab2 = data.table(
-  Outcome = c(
-    "Primary (adults)",
-    "Primary (adolescents)",
-    "Secondary 1",
-    "Secondary 2"),
-  n = c(
-    nobs(prim_adult),
-    nobs(prim_minor),
-    nobs(sec_adult),
-    nobs(sec2_adult)),
-  β_level = c(
-    get_term_rr(prim_adult, "post"),
-    get_term_rr(prim_minor, "post"),
-    get_term_rr(sec_adult, "post"),
-    get_term_rr(sec2_adult, "post")),
-  β_trend = c(
-    get_term_rr(prim_adult, "time_after"),
-    get_term_rr(prim_minor, "time_after"),
-    get_term_rr(sec_adult, "time_after"),
-    get_term_rr(sec2_adult, "time_after"))
+  Population = c("Adults", "Adolescents", "Adults", "Adults"),
+  Outcome = c("Primary", "Primary", "Secondary 1", "Secondary 2"),
+  Details = c(
+    "All cannabis-specific\ndiagnoses¹)",
+    "All cannabis-specific\ndiagnoses¹)",
+    "Cannabis\nintoxication or\npoisoning²)",
+    "Cannabis-induced\npsychosis³)"),
+  level_change = c(
+    get_term_rr_star(prim_adult, "post"),
+    get_term_rr_star(prim_minor, "post"),
+    get_term_rr_star(sec_adult, "post"),
+    get_term_rr_star(sec2_adult, "post")),
+  slope_change = c(
+    get_term_rr_star(prim_adult, "time_after"),
+    get_term_rr_star(prim_minor, "time_after"),
+    get_term_rr_star(sec_adult, "time_after"),
+    get_term_rr_star(sec2_adult, "time_after")))
+
+note_tab2 = paste(
+  "Note. 1) Primary outcome: rate of admissions with a cannabis-specific ICD-10 main diagnosis",
+  "(F12.0-F12.9; T40.7) per 1,000 all-cause admissions in the population",
+  "(adults vs. adolescents); 2) Secondary outcome 1: rate of admissions with acute intoxication",
+  "(F12.0) or poisoning (T40.7) per 1,000 all-cause admissions among adults;",
+  "3) Secondary outcome 2: rate of admissions with cannabis-induced psychoses (F12.5)",
+  "per 1,000 all-cause admissions among adults. Detailed model results are reported in",
+  "Supplementary Table 4. * p < 0.05, ** p < 0.01, *** p < 0.001."
 )
 
 ft2 = tab2 %>%
-  flextable(col_keys = c("Outcome", "β_level", "β_trend")) %>%
+  flextable(
+    col_keys = c(
+      "Population", "Outcome", "Details", "level_change", "slope_change")) %>%
   set_header_labels(
+    Population = "Population",
     Outcome = "Outcome",
-    beta_level = "level change: RR (95% CI)",
-    beta_trend = "slope change: RR (95% CI)") %>%
-  autofit()
+    Details = "Details",
+    level_change = "Level change",
+    slope_change = "Slope change") %>%
+  autofit() %>%
+  add_footer_lines(values = note_tab2)
 
 ft2
 # save_as_docx(ft2, path = paste0("Table_model_results_", DATE, ".docx"))
@@ -1510,37 +1511,102 @@ ggsave(
 ## tertiary result table <-------------------------------------------------------
 tab2_ter = data.table(
   Outcome = c(
-    "Alcohol",
-    "Anxiety",
+    "Alcohol use disorders",
+    "Anxiety disorders",
     "Depression",
     "Schizophrenia"),
-  n = c(
-    nobs(alc_adult),
-    nobs(anxiety_adult),
-    nobs(depress_adult),
-    nobs(schizo_adult)),
-  β_level = c(
-    get_term_rr(alc_adult, "post"),
-    get_term_rr(anxiety_adult, "post"),
-    get_term_rr(depress_adult, "post"),
-    get_term_rr(schizo_adult, "post")),
-  β_trend = c(
-    get_term_rr(alc_adult, "time_after"),
-    get_term_rr(anxiety_adult, "time_after"),
-    get_term_rr(depress_adult, "time_after"),
-    get_term_rr(schizo_adult, "time_after"))
-)
+  level_change = c(
+    get_term_rr_star(alc_adult, "post"),
+    get_term_rr_star(anxiety_adult, "post"),
+    get_term_rr_star(depress_adult, "post"),
+    get_term_rr_star(schizo_adult, "post")),
+  slope_change = c(
+    get_term_rr_star(alc_adult, "time_after"),
+    get_term_rr_star(anxiety_adult, "time_after"),
+    get_term_rr_star(depress_adult, "time_after"),
+    get_term_rr_star(schizo_adult, "time_after")))
+
+note_tab2_ter = paste(
+  "Note. Values are rate ratios with 95% confidence intervals.",
+  "* p < 0.05, ** p < 0.01, *** p < 0.001.")
 
 ft2_ter = tab2_ter %>%
-  flextable(col_keys = c("Outcome", "β_level", "β_trend")) %>%
+  flextable(col_keys = c("Outcome", "level_change", "slope_change")) %>%
   set_header_labels(
     Outcome = "Outcome",
-    `β_level` = "level change: RR (95% CI)",
-    `β_trend` = "slope change: RR (95% CI)") %>%
-  autofit()
+    level_change = "level change: RR (95% CI)",
+    slope_change = "slope change: RR (95% CI)") %>%
+  autofit() %>%
+  add_footer_lines(values = note_tab2_ter)
 
 ft2_ter
-#save_as_docx(ft2_ter, path = paste0("supp_table_tertiary_model_results_", DATE, ".docx"))
+save_as_docx(ft2_ter, path = paste0("supp_table_tertiary_model_results_", DATE, ".docx"))
+
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 6c) ABSOLUTE AND RELATIVE 12-MONTH EFFECTS
+# ______________________________________________________________________________________________________________________
+post_12m_end = as.Date("2025-03-31")
+
+## adults primary
+absrel_12m_adult = itsadult1 %>%
+  filter(
+    week_start >= intervention_date,
+    week_start <= post_12m_end) %>%
+  summarize(
+    fitted_12m = sum(mu_hat, na.rm = T),
+    cf_12m = sum(mu_cf, na.rm = T),
+    extra_12m = fitted_12m - cf_12m,
+    extra_per_week = mean(mu_hat - mu_cf, na.rm = T),
+    pct_more_vs_cf = 100 * (fitted_12m - cf_12m) / cf_12m)
+
+## adolescents primary
+absrel_12m_minor = itsminor1 %>%
+  filter(
+    week_start >= intervention_date,
+    week_start <= post_12m_end) %>%
+  summarize(
+    fitted_12m = sum(mu_hat, na.rm = T),
+    cf_12m = sum(mu_cf, na.rm = T),
+    extra_12m = fitted_12m - cf_12m,
+    pct_more_vs_cf = 100 * (fitted_12m - cf_12m) / cf_12m)
+
+## secondary 1
+absrel_12m_intox = itsintox1 %>%
+  filter(
+    week_start >= intervention_date,
+    week_start <= post_12m_end) %>%
+  summarize(
+    fitted_12m = sum(mu_hat, na.rm = T),
+    cf_12m = sum(mu_cf, na.rm = T),
+    extra_12m = fitted_12m - cf_12m,
+    extra_per_week = mean(mu_hat - mu_cf, na.rm = T),
+    pct_more_vs_cf = 100 * (fitted_12m - cf_12m) / cf_12m)
+
+## secondary 2
+absrel_12m_psych = itspsych1 %>%
+  filter(
+    week_start >= intervention_date,
+    week_start <= post_12m_end) %>%
+  summarize(
+    fitted_12m = sum(mu_hat, na.rm = T),
+    cf_12m = sum(mu_cf, na.rm = T),
+    extra_12m = fitted_12m - cf_12m,
+    extra_per_week = mean(mu_hat - mu_cf, na.rm = T),
+    pct_more_vs_cf = 100 * (fitted_12m - cf_12m) / cf_12m)
+
+absrel_12m_adult; absrel_12m_minor; absrel_12m_intox; absrel_12m_psych
+
+## rounded values for manuscript text
+round(absrel_12m_adult$pct_more_vs_cf, 1)
+round(absrel_12m_minor$pct_more_vs_cf, 1)
+round(absrel_12m_intox$pct_more_vs_cf, 1)
+round(absrel_12m_psych$pct_more_vs_cf, 1)
+
+# p-value F12.2
+summary(dep_adult)$p.table[c("post", "time_after"), "Pr(>|z|)"]
 
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1773,6 +1839,127 @@ setorder(tab1, block, row)
 
 tab1
 
+## tab 1 extension <------------------------------------------------------------
+## long format
+dt_long = rbindlist(list(
+  dt0[, .(altergruppe_lab, date, y = Y_primary, pop = N_all,
+          outcome = "Any cannabis-specific diagnosis admissions")],
+  dt0[, .(altergruppe_lab, date, y = Y_intox,   pop = N_all,
+          outcome = "Acute intoxication admissions")],
+  dt0[, .(altergruppe_lab, date, y = Y_psych,   pop = N_all,
+          outcome = "Cannabis-induced psychosis admissions")]
+), use.names = T)
+
+## rate per 1000 all-cause admissions
+dt_long[, rate := (y / pop) * 1e3]
+
+setorder(dt_long, outcome, altergruppe_lab, date)
+
+## Table 1
+tab1_long = dt_long[, {
+  d = .SD
+  d_pre  = d[date >= pre_start  & date <  pre_end]
+  d_post = d[date >= post_start & date <  post_end]
+  out_lab = .BY$outcome
+  row_lab_rate = fifelse(
+    out_lab == "Any cannabis-specific diagnosis admissions",
+    "Weekly rate¹: mean (SD)",
+    fifelse(
+      out_lab == "Acute intoxication admissions",
+      "Weekly rate²: mean (SD)",
+      "Weekly rate³: mean (SD)"))
+  row_lab_rate_pre = fifelse(
+    out_lab == "Any cannabis-specific diagnosis admissions",
+    "12 months before 1 April 2024: weekly rate¹: mean (SD)",
+    fifelse(
+      out_lab == "Acute intoxication admissions",
+      "12 months before 1 April 2024: weekly rate²: mean (SD)",
+      "12 months before 1 April 2024: weekly rate³: mean (SD)"))
+  row_lab_rate_post = fifelse(
+    out_lab == "Any cannabis-specific diagnosis admissions",
+    "12 months after 1 April 2024: weekly rate¹: mean (SD)",
+    fifelse(
+      out_lab == "Acute intoxication admissions",
+      "12 months after 1 April 2024: weekly rate²: mean (SD)",
+      "12 months after 1 April 2024: weekly rate³: mean (SD)"))
+  rbind(
+    data.table(
+      block = out_lab,
+      row = "Total N",
+      value = as.character(sum(d$y, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = "Total N: 12 months before 1 April 2024",
+      value = as.character(sum(d_pre$y, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = "Total N: 12 months after 1 April 2024",
+      value = as.character(sum(d_post$y, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = "Weekly N: mean (SD)",
+      value = sprintf("%.2f (%.2f)",
+                      mean(d$y, na.rm = T),
+                      sd(d$y, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = row_lab_rate,
+      value = sprintf("%.2f (%.2f)",
+                      mean(d$rate, na.rm = T),
+                      sd(d$rate, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = row_lab_rate_pre,
+      value = sprintf("%.2f (%.2f)",
+                      mean(d_pre$rate, na.rm = T),
+                      sd(d_pre$rate, na.rm = T))),
+    data.table(
+      block = out_lab,
+      row = row_lab_rate_post,
+      value = sprintf("%.2f (%.2f)",
+                      mean(d_post$rate, na.rm = T),
+                      sd(d_post$rate, na.rm = T))))
+}, by = .(outcome, altergruppe_lab)]
+
+## wide format
+tab1 = dcast(
+  tab1_long,
+  block + row ~ altergruppe_lab,
+  value.var = "value")
+
+## order
+tab1[, block := factor(block, levels = c(
+  "Any cannabis-specific diagnosis admissions",
+  "Acute intoxication admissions",
+  "Cannabis-induced psychosis admissions"))]
+
+tab1[, row := factor(row, levels = c(
+  "Total N",
+  "Total N: 12 months before 1 April 2024",
+  "Total N: 12 months after 1 April 2024",
+  "Weekly N: mean (SD)",
+  "Weekly rate¹: mean (SD)",
+  "12 months before 1 April 2024: weekly rate¹: mean (SD)",
+  "12 months after 1 April 2024: weekly rate¹: mean (SD)",
+  "Weekly rate²: mean (SD)",
+  "12 months before 1 April 2024: weekly rate²: mean (SD)",
+  "12 months after 1 April 2024: weekly rate²: mean (SD)",
+  "Weekly rate³: mean (SD)",
+  "12 months before 1 April 2024: weekly rate³: mean (SD)",
+  "12 months after 1 April 2024: weekly rate³: mean (SD)"))]
+
+setorder(tab1, block, row)
+
+tab1_out = copy(tab1)
+
+sec_rows = tab1_out$block %in% c(
+  "Acute intoxication admissions",
+  "Cannabis-induced psychosis admissions")
+
+tab1_out[sec_rows, Adolescents := "/"]
+tab1_out[sec_rows, Total := "/"]
+
+tab1_out
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1843,7 +2030,7 @@ for (q in sort(unique(dt_sys$quelle))) {
   # ---------------- primary adults ----------------
   d_ad = dt_sys %>%
     filter(quelle == q, altergruppe == "adult") %>%
-    filter(!(jahr == 2025 & kw %in% c(20:21))) %>%
+    filter(!(jahr == 2025 & kw %in% c(38:39))) %>%
     mutate(
       week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
       week_end = week_start + 6) %>%
@@ -1870,24 +2057,28 @@ for (q in sort(unique(dt_sys$quelle))) {
     family = nb(link = "log"),
     data = d_ad,
     method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
+    knots = list(woy = c(0.5, 52.5)))
+  
   sens_model_list[[paste(q, "Primary (adults)", sep = " | ")]] = m_ad
-  r_post = get_rr(m_ad, "post")
-  r_ta   = get_rr(m_ad, "time_after")
+  
+  r_post = get_rr_p(m_ad, "post")
+  r_ta = get_rr_p(m_ad, "time_after")
   
   sens_sys_res = rbind(
     sens_sys_res,
-    data.table(quelle = q, outcome = "Primary (adults)", term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], RR_u = r_post["RR_u"]),
-    data.table(quelle = q, outcome = "Primary (adults)", term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
+    data.table(
+      quelle = q, outcome = "Primary (adults)", term = "post",
+      RR = r_post["RR"], RR_l = r_post["RR_l"], RR_u = r_post["RR_u"],
+      p_value = r_post["p_value"]),
+    data.table(
+      quelle = q, outcome = "Primary (adults)", term = "time_after",
+      RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"],
+      p_value = r_ta["p_value"]))
   
   # ---------------- primary adolescents ----------------
   d_mi = dt_sys %>%
     filter(quelle == q, altergruppe == "minor") %>%
-    filter(!(jahr == 2025 & kw %in% c(20:21))) %>%
+    filter(!(jahr == 2025 & kw %in% c(38:39))) %>%
     mutate(
       week_start = ISOweek2date(sprintf("%d-W%02d-1", jahr, kw)),
       week_end = week_start + 6) %>%
@@ -1914,21 +2105,23 @@ for (q in sort(unique(dt_sys$quelle))) {
     family = nb(link = "log"),
     data = d_mi,
     method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
+    knots = list(woy = c(0.5, 52.5)))
+  
   sens_model_list[[paste(q, "Primary (adolescents)", sep = " | ")]] = m_mi
-  r_post = get_rr(m_mi, "post")
-  r_ta = get_rr(m_mi, "time_after")
+  
+  r_post = get_rr_p(m_mi, "post")
+  r_ta = get_rr_p(m_mi, "time_after")
   
   sens_sys_res = rbind(
     sens_sys_res,
-    data.table(quelle = q, outcome = "Primary (adolescents)", term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(quelle = q, outcome = "Primary (adolescents)", 
-               term = "time_after", RR = r_ta["RR"], RR_l = r_ta["RR_l"], 
-               RR_u = r_ta["RR_u"])
-  )
+    data.table(
+      quelle = q, outcome = "Primary (adolescents)", term = "post",
+      RR = r_post["RR"], RR_l = r_post["RR_l"], RR_u = r_post["RR_u"],
+      p_value = r_post["p_value"]),
+    data.table(
+      quelle = q, outcome = "Primary (adolescents)", term = "time_after",
+      RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"],
+      p_value = r_ta["p_value"]))
   
   # ---------------- secondary 1 ----------------
   m_s1 = gam(
@@ -1938,20 +2131,23 @@ for (q in sort(unique(dt_sys$quelle))) {
     family = nb(link = "log"),
     data = d_ad,
     method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
+    knots = list(woy = c(0.5, 52.5)))
+  
   sens_model_list[[paste(q, "Secondary 1", sep = " | ")]] = m_s1
-  r_post = get_rr(m_s1, "post")
-  r_ta = get_rr(m_s1, "time_after")
+  
+  r_post = get_rr_p(m_s1, "post")
+  r_ta = get_rr_p(m_s1, "time_after")
   
   sens_sys_res = rbind(
     sens_sys_res,
-    data.table(quelle = q, outcome = "Secondary 1", term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(quelle = q, outcome = "Secondary 1", term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
+    data.table(
+      quelle = q, outcome = "Secondary 1", term = "post",
+      RR = r_post["RR"], RR_l = r_post["RR_l"], RR_u = r_post["RR_u"],
+      p_value = r_post["p_value"]),
+    data.table(
+      quelle = q, outcome = "Secondary 1", term = "time_after",
+      RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"],
+      p_value = r_ta["p_value"]))
   
   # ---------------- secondary 2 ----------------
   m_s2 = gam(
@@ -1961,27 +2157,29 @@ for (q in sort(unique(dt_sys$quelle))) {
     family = nb(link = "log"),
     data = d_ad,
     method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
+    knots = list(woy = c(0.5, 52.5)))
+  
   sens_model_list[[paste(q, "Secondary 2", sep = " | ")]] = m_s2
-  r_post = get_rr(m_s2, "post")
-  r_ta = get_rr(m_s2, "time_after")
+  
+  r_post = get_rr_p(m_s2, "post")
+  r_ta = get_rr_p(m_s2, "time_after")
   
   sens_sys_res = rbind(
     sens_sys_res,
-    data.table(quelle = q, outcome = "Secondary 2", term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(quelle = q, outcome = "Secondary 2", term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
+    data.table(
+      quelle = q, outcome = "Secondary 2", term = "post",
+      RR = r_post["RR"], RR_l = r_post["RR_l"], RR_u = r_post["RR_u"],
+      p_value = r_post["p_value"]),
+    data.table(
+      quelle = q, outcome = "Secondary 2", term = "time_after",
+      RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"],
+      p_value = r_ta["p_value"]))
 }
 
 sens_sys_res = sens_sys_res %>%
   mutate(
-    RR_txt = sprintf("%.3f (%.3f–%.3f)", RR, RR_l, RR_u),
-    outcome = factor(outcome, levels = outcome_levels)
-  ) %>%
+    RR_txt = sprintf("%.3f (%.3f–%.3f)%s", RR, RR_l, RR_u, fmt_stars(p_value)),
+    outcome = factor(outcome, levels = outcome_levels)) %>%
   arrange(quelle, outcome, term)
 
 sens_sys_res
@@ -2030,38 +2228,38 @@ sens_sys_tab = as.data.table(sens_sys_res)
 
 sens_sys_tab[, term2 := fifelse(
   term == "post", "beta_level",
-  fifelse(term == "time_after", "beta_trend", NA_character_))]
+  fifelse(term == "time_after", "beta_trend", NA_character_)
+)]
 
-# keep only the two terms we want
 sens_sys_tab = sens_sys_tab[
-  !is.na(term2), .(Source = quelle, 
-                   Outcome = as.character(outcome), term2, RR_txt)]
+  !is.na(term2),
+  .(Source = quelle, Outcome = as.character(outcome), term2, RR_txt)
+]
 
-# wide
 sens_sys_tab_wide = dcast(
   sens_sys_tab,
   Source + Outcome ~ term2,
-  value.var = "RR_txt"
-)
+  value.var = "RR_txt")
 
-# order
 sens_sys_tab_wide[, Outcome := factor(Outcome, levels = c(
-  "Primary (adults)",
-  "Primary (adolescents)",
-  "Secondary 1",
-  "Secondary 2"
-))]
+  "Primary (adults)", "Primary (adolescents)",
+  "Secondary 1", "Secondary 2"))]
+
 setorder(sens_sys_tab_wide, Source, Outcome)
+
+note_sens_sys = paste(
+  "Note. Values are rate ratios with 95% confidence intervals.",
+  "* p < 0.05, ** p < 0.01, *** p < 0.001.")
 
 ft_sens_sys = sens_sys_tab_wide %>%
   flextable(col_keys = c("Source", "Outcome", "beta_level", "beta_trend")) %>%
   set_header_labels(
     Source = "Source",
     Outcome = "Outcome",
-    beta_level = "\u03B2_level: RR (95% CI)",
-    beta_trend = "\u03B2_trend: RR (95% CI)"
-  ) %>%
-  autofit()
+    beta_level = "level change: RR (95% CI)",
+    beta_trend = "slope change: RR (95% CI)") %>%
+  autofit() %>%
+  add_footer_lines(values = note_sens_sys)
 
 ft_sens_sys
 # save_as_docx(ft_sens_sys, path = paste0("sens_table_model_results_", DATE, ".docx"))
@@ -2158,7 +2356,8 @@ ft_main_info = main_model_info %>%
   border_inner_v(part = "all", border = fp_border(color = "black", width = 0.8)) %>%
   bold(part = "header") %>%
   align(align = "center", part = "header") %>%
-  autofit(); ft_main_info
+  autofit()
+ft_main_info
 
 #save_as_docx(
 #  ft_main_info,
@@ -2222,6 +2421,9 @@ ft_sens_model_info
 #)
 
 ## Placebo test <---------------------------------------------------------------
+intervention_date = as.Date("2024-04-01")
+placebo_shifts = seq(-20L, 20L, by = 2L)
+
 get_t0 = \(d) {
   t0 = d %>%
     filter(week_start <= intervention_date & intervention_date <= week_end) %>%
@@ -2236,163 +2438,100 @@ t0_minor = get_t0(itsminor)
 t0_intox = get_t0(itsintox)
 t0_psych = get_t0(itspsych)
 
-placebo_res = data.table()
-
-# ---- Primary adults ----
-for (sh in placebo_shifts) {
+## helper fcts
+run_placebo = \(data, t0, outcome_label, y_var, k_woy) {
   
-  t0j = t0_adult + sh
-  if (t0j < 1L || t0j > nrow(itsadult)) next
+  res = data.table()
   
-  d_run = itsadult %>%
-    mutate(
-      post = as.integer(t_idx >= t0j),
-      time_after = if_else(t_idx < t0j, 0L, pmax(0L, t_idx - t0j)))
-  
-  m = gam(
-    Y_primary ~ post + time_after + t_idx +
-      s(woy, bs = "cc", k = 30) +
-      offset(log(N_all)),
-    family = nb(link = "log"),
-    data = d_run,
-    method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
-  
-  r_post = get_rr(m, "post")
-  r_ta = get_rr(m, "time_after")
-  
-  placebo_res = rbind(
-    placebo_res,
-    data.table(outcome = "Primary (adults)", 
-               shift_weeks = sh, term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(outcome = "Primary (adults)", 
-               shift_weeks = sh, term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
+  for (sh in placebo_shifts) {
+    
+    t0j = t0 + sh
+    if (t0j < 1L || t0j > nrow(data)) next
+    
+    d_run = data %>%
+      mutate(
+        post = as.integer(t_idx >= t0j),
+        time_after = if_else(t_idx < t0j, 0L, pmax(0L, t_idx - t0j)))
+    
+    form = as.formula(
+      paste0(
+        y_var,
+        " ~ post + time_after + t_idx + ",
+        "s(woy, bs = 'cc', k = ", k_woy, ") + ",
+        "offset(log(N_all))"))
+    
+    m = gam(
+      formula = form,
+      family = nb(link = "log"),
+      data = d_run,
+      method = "REML",
+      knots = list(woy = c(0.5, 52.5)))
+    
+    r_post = get_rr(m, "post")
+    r_ta   = get_rr(m, "time_after")
+    
+    res = rbind(
+      res,
+      data.table(
+        outcome = outcome_label,
+        shift_weeks = sh,
+        term = "post",
+        RR = r_post["RR"],
+        RR_l = r_post["RR_l"],
+        RR_u = r_post["RR_u"]),
+      data.table(
+        outcome = outcome_label,
+        shift_weeks = sh,
+        term = "time_after",
+        RR = r_ta["RR"],
+        RR_l = r_ta["RR_l"],
+        RR_u = r_ta["RR_u"]))
+  }
+  res
 }
 
-# ---- Primary adolescents ----
-for (sh in placebo_shifts) {
-  
-  t0j = t0_minor + sh
-  if (t0j < 1L || t0j > nrow(itsminor)) next
-  
-  d_run = itsminor %>%
-    mutate(
-      post = as.integer(t_idx >= t0j),
-      time_after = if_else(t_idx < t0j, 0L, pmax(0L, t_idx - t0j)))
-  
-  m = gam(
-    Y_primary ~ post + time_after + t_idx +
-      s(woy, bs = "cc", k = 50) +
-      offset(log(N_all)),
-    family = nb(link = "log"),
-    data = d_run,
-    method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
-  
-  r_post = get_rr(m, "post")
-  r_ta = get_rr(m, "time_after")
-  
-  placebo_res = rbind(
-    placebo_res,
-    data.table(outcome = "Primary (adolescents)", 
-               shift_weeks = sh, term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(outcome = "Primary (adolescents)", 
-               shift_weeks = sh, term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
-}
-
-# ---- Secondary 1 (adults) ----
-for (sh in placebo_shifts) {
-  
-  t0j = t0_intox + sh
-  if (t0j < 1L || t0j > nrow(itsintox)) next
-  
-  d_run = itsintox %>%
-    mutate(
-      post = as.integer(t_idx >= t0j),
-      time_after = if_else(t_idx < t0j, 0L, pmax(0L, t_idx - t0j)))
-  
-  m = gam(
-    Y_intox ~ post + time_after + t_idx +
-      s(woy, bs = "cc", k = 52) +
-      offset(log(N_all)),
-    family = nb(link = "log"),
-    data = d_run,
-    method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
-  
-  r_post = get_rr(m, "post")
-  r_ta = get_rr(m, "time_after")
-  
-  placebo_res = rbind(
-    placebo_res,
-    data.table(outcome = "Secondary 1", 
-               shift_weeks = sh, term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(outcome = "Secondary 1", 
-               shift_weeks = sh, term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
-}
-
-# ---- Secondary 2 (adults) ----
-for (sh in placebo_shifts) {
-  
-  t0j = t0_psych + sh
-  if (t0j < 1L || t0j > nrow(itspsych)) next
-  
-  d_run = itspsych %>%
-    mutate(
-      post = as.integer(t_idx >= t0j),
-      time_after = if_else(t_idx < t0j, 0L, pmax(0L, t_idx - t0j)))
-  
-  m = gam(
-    Y_psych ~ post + time_after + t_idx +
-      s(woy, bs = "cc", k = 20) +
-      offset(log(N_all)),
-    family = nb(link = "log"),
-    data = d_run,
-    method = "REML",
-    knots = list(woy = c(0.5, 52.5))
-  )
-  
-  r_post = get_rr(m, "post")
-  r_ta = get_rr(m, "time_after")
-  
-  placebo_res = rbind(
-    placebo_res,
-    data.table(outcome = "Secondary 2", 
-               shift_weeks = sh, term = "post",
-               RR = r_post["RR"], RR_l = r_post["RR_l"], 
-               RR_u = r_post["RR_u"]),
-    data.table(outcome = "Secondary 2", 
-               shift_weeks = sh, term = "time_after",
-               RR = r_ta["RR"], RR_l = r_ta["RR_l"], RR_u = r_ta["RR_u"])
-  )
-}
+## run placebo models
+placebo_res = rbindlist(list(
+  run_placebo(
+    data = itsadult,
+    t0 = t0_adult,
+    outcome_label = "Primary (adults)",
+    y_var = "Y_primary",
+    k_woy = 30),
+  run_placebo(
+    data = itsminor,
+    t0 = t0_minor,
+    outcome_label = "Primary (adolescents)",
+    y_var = "Y_primary",
+    k_woy = 50),
+  run_placebo(
+    data = itsintox,
+    t0 = t0_intox,
+    outcome_label = "Secondary 1",
+    y_var = "Y_intox",
+    k_woy = 52),
+  run_placebo(
+    data = itspsych,
+    t0 = t0_psych,
+    outcome_label = "Secondary 2",
+    y_var = "Y_psych",
+    k_woy = 20)), use.names = T)
 
 placebo_res = placebo_res %>%
-  mutate(outcome = factor(outcome, levels = outcome_levels)) %>%
+  mutate(
+    outcome = factor(outcome, levels = outcome_levels),
+    term = factor(term, levels = c("post", "time_after"))) %>%
   arrange(outcome, shift_weeks, term)
 
-## plots
+placebo_res
+
+## plots: level change
 p_placebo_level = ggplot(
   placebo_res %>% filter(term == "post"),
   aes(x = shift_weeks, y = RR, colour = outcome)) +
   geom_hline(yintercept = 1, linetype = "dashed") +
   geom_vline(xintercept = 0, linetype = "dotted") +
-  geom_errorbar(aes(ymin = RR_l, ymax = RR_u), width = 0.4) +
+  geom_errorbar(aes(ymin = RR_l, ymax = RR_u), width = 0.5) +
   geom_point() +
   geom_line(aes(group = outcome)) +
   facet_wrap(~ outcome, ncol = 2) +
@@ -2403,7 +2542,9 @@ p_placebo_level = ggplot(
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 13)); p_placebo_level
+    strip.text = element_text(size = 13))
+
+p_placebo_level
 
 # svg
 ggsave(
@@ -2416,17 +2557,19 @@ ggsave(
 # tiff
 ggsave(
   filename = paste0("plots/placebo_level_", DATE, ".tiff"),
+  plot = p_placebo_level,
   width = 14,
   height = 8,
   dpi = 300
 )
 
+## plots: slope change
 p_placebo_trend = ggplot(
   placebo_res %>% filter(term == "time_after"),
   aes(x = shift_weeks, y = RR, colour = outcome)) +
   geom_hline(yintercept = 1, linetype = "dashed") +
   geom_vline(xintercept = 0, linetype = "dotted") +
-  geom_errorbar(aes(ymin = RR_l, ymax = RR_u), width = 0.4) +
+  geom_errorbar(aes(ymin = RR_l, ymax = RR_u), width = 0.5) +
   geom_point() +
   geom_line(aes(group = outcome)) +
   facet_wrap(~ outcome, ncol = 2) +
@@ -2437,7 +2580,9 @@ p_placebo_trend = ggplot(
   theme_minimal(base_size = 14) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 13)); p_placebo_trend
+    strip.text = element_text(size = 13))
+
+p_placebo_trend
 
 # svg
 ggsave(
@@ -2450,6 +2595,7 @@ ggsave(
 # tiff
 ggsave(
   filename = paste0("plots/placebo_trend_", DATE, ".tiff"),
+  plot = p_placebo_trend,
   width = 14,
   height = 8,
   dpi = 300
@@ -2612,373 +2758,143 @@ dev.off()
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 10) SUPPLEMENTARY TABLE 2
+# 10) SUPPLEMENTARY TABLE 1
 # ______________________________________________________________________________________________________________________
-supp_diag = dat2 %>%
-  filter(
-    icd_code %in% c(paste0("F12.", 0:9), "T40.7"),
-    !(jahr == 2025 & kw %in% c(20:21))) %>%
-  group_by(icd_code, diagnose) %>%
-  summarize(
-    Total = sum(fallzahl, na.rm = T),
-    Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
-    Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
-    DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
-    PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T),
-    .groups = "drop") %>%
-  arrange(icd_code)
+supp_exclusion = data.table(
+  Analysis_group = c(
+    "Primary outcome",
+    "Secondary outcome 1",
+    "Secondary outcome 2",
+    "Tertiary outcomes"),
+  Population = c(
+    "Adults and adolescents",
+    "Adults only",
+    "Adults only",
+    "Adults only"),
+  Weeks_removed_end_of_series = c(
+    "2025-W38 to 2025-W39",
+    "2025-W38 to 2025-W39",
+    "2025-W38 to 2025-W39",
+    "2025-W32 to 2025-W39"),
+  N_removed_weeks = c(2L, 2L, 2L, 8L))
 
+supp_exclusion
+
+note_suppl1 = paste(
+  "Note. Because the public InEK data only appear to cover completed hospitalisations,",
+  "end-of-series observations may become increasingly incomplete for diagnoses with longer",
+  "lengths of stay. To determine an appropriate end-of-series restriction for these",
+  "additional analyses, we reviewed diagnosis-group-specific length-of-stay information",
+  "from separate InEK extracts for early 2025 and for August/September 2024.",
+  "Based on these supplementary data, we conservatively excluded the final weeks shown above",
+  "from the respective analyses.")
+
+ft_suppl1 = supp_exclusion %>%
+  flextable(col_keys = c(
+    "Analysis_group",
+    "Population",
+    "Weeks_removed_end_of_series",
+    "N_removed_weeks")) %>%
+  set_header_labels(
+    Analysis_group = "Analysis group",
+    Population = "Population",
+    Weeks_removed_end_of_series = "Excluded calendar weeks in 2025",
+    N_removed_weeks = "No. of excluded weeks") %>%
+  autofit() %>%
+  add_footer_lines(values = note_suppl1)
+
+ft_suppl1
+save_as_docx(ft_suppl1, path = paste0("supp_table_exclusion_results_", DATE, ".docx"))
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+# ==================================================================================================================================================================
+
+# 11) SUPPLEMENTARY TABLE 3
+# ______________________________________________________________________________________________________________________
+all_codes_main = tibble(
+  icd_code = c(paste0("F12.", 0:9), "T40.7")
+)
+
+supp_diag_main = all_codes_main %>%
+  left_join(
+    dat2 %>%
+      filter(
+        subset == "all",
+        icd_code %in% c(paste0("F12.", 0:9), "T40.7"),
+        !(jahr == 2025 & kw %in% c(38:39))) %>%
+      group_by(icd_code) %>%
+      summarize(
+        Total = sum(fallzahl, na.rm = T),
+        Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+        Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+        DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+        PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T),
+        .groups = "drop"), by = "icd_code") %>%
+  mutate(
+    Section = "Primary/secondary outcomes",
+    Diagnosis = icd_code) %>%
+  select(Section, Diagnosis, Total, Adolescents, Adults, DRG, PEPP)
+
+## tertiary outcomes: grouped control diagnoses
+supp_diag_ter = bind_rows(
+  dat2 %>%
+    filter(
+      subset == "all",
+      str_detect(icd_code, "^F2"),
+      !(jahr == 2025 & kw %in% c(32:39))) %>%
+    summarize(
+      Total = sum(fallzahl, na.rm = T),
+      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
+    mutate(Diagnosis = "Schizophrenia: F2x"),
+  
+  dat2 %>%
+    filter(
+      subset == "all",
+      str_detect(icd_code, "^F10") | str_detect(icd_code, "^T51"),
+      !(jahr == 2025 & kw %in% c(32:39))) %>%
+    summarize(
+      Total = sum(fallzahl, na.rm = T),
+      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
+    mutate(Diagnosis = "Alcohol: F10; T51"),
+  
+  dat2 %>%
+    filter(
+      subset == "all",
+      str_detect(icd_code, "^F40") |
+        str_detect(icd_code, "^F41") |
+        icd_code %in% c("F48.8", "F48.9"),
+      !(jahr == 2025 & kw %in% c(32:39))) %>%
+    summarize(
+      Total = sum(fallzahl, na.rm = T),
+      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
+    mutate(Diagnosis = "Anxiety: F40-F41; F48.8; F48.9"),
+  
+  dat2 %>%
+    filter(
+      subset == "all",
+      str_detect(icd_code, "^F32") |
+        str_detect(icd_code, "^F33"),
+      !(jahr == 2025 & kw %in% c(32:39))) %>%
+    summarize(
+      Total = sum(fallzahl, na.rm = T),
+      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
+    mutate(Diagnosis = "Depression: F32-F33")) %>%
+  mutate(Section = "Tertiary outcomes") %>%
+  select(Section, Diagnosis, Total, Adolescents, Adults, DRG, PEPP)
+
+## combine
+supp_diag = bind_rows(supp_diag_main, supp_diag_ter)
 supp_diag
 
-# ==================================================================================================================================================================
-# ==================================================================================================================================================================
-# ==================================================================================================================================================================
-
-# X) REST
-# ______________________________________________________________________________________________________________________
-
-all_source = dat3 %>% # differentiation between DRG & PEPP
-  filter(subset == "all") %>%
-  group_by(across(all_of(c("jahr", "kw", "altergruppe", "quelle")))) %>%
-  summarize(N_all = sum(fallzahl, na.rm = T), .groups = "drop") %>%
-  mutate(N_all = as.integer(N_all))
-
-
-prim_adultAR = gamm(
-  Y_primary ~ post + time_after + t_idx + 
-    s(woy, bs = "cc", k = 52) +
-    offset(log(N_all)),
-  family = nb(link = "log"),
-  data = itsdat,
-  method = "REML",
-  knots = list(woy = c(0.5, 52.5)),
-  correlation = corAR1(form = ~ t_idx)
-)
-
-
-## old
-## ITS GAM
-prim_adult = gam(
-  Y_primary ~ post + time_after + 
-    s(t_idx, k = 20) + 
-    s(woy, bs = "cc", k = 20) +
-    offset(log(N_all)),
-  family = nb(link = "log"),
-  data = itsdat,
-  method = "REML",
-  knots = list(woy = c(0.5, 52.5))
-)
-
-## extract coefficients
-cf = coef(prim_adult); V = vcov(prim_adult); se = sqrt(diag(V))
-
-
-## rate ratios
-rr_adult = tibble(
-  term = names(cf),
-  est = cf, 
-  se = se,
-  lcl = cf - 1.96 * se,
-  ucl = cf + 1.96 * se) %>%
-  mutate(
-    RR = exp(est),
-    RR_l = exp(lcl),
-    RR_r = exp(ucl)) %>%
-  filter(term %in% c("post", "time_after"))
-
-rr_adult
-
-## tests
-cf = coef(prim_adult); V = vcov(prim_adult)
-
-eff_h = \(h) {
-  b  = cf["post"] + h * cf["time_after"]
-  se = sqrt(
-    V["post","post"] +
-      h^2 * V["time_after","time_after"] +
-      2 * h * V["post","time_after"]
-  )
-  tibble(
-    h_weeks = h,
-    RR = exp(b),
-    RR_l = exp(b - 1.96 * se),
-    RR_u = exp(b + 1.96 * se)
-  )
-}
-
-bind_rows(eff_h(0), eff_h(13), eff_h(26), eff_h(52))
-## ITS BAM <--------------------------------------------------------------------
-## grid over rho
-rhos = seq(0, 0.6, by = 0.01)
-
-fit_rho = \(rho) {
-  AR_start = c(T, rep(F, nrow(itsdat) - 1L))
-  m = bam(
-    Y_primary ~ post + time_after + t_idx +
-      s(woy, bs = "cc", k = 50) +
-      offset(log(N_all)),
-    family = nb(link = "log"),
-    data = itsdat,
-    method = "fREML",
-    discrete = T,
-    rho = rho,
-    AR.start = AR_start,
-    knots = list(woy = c(0.5, 52.5))
-  )
-  
-  rsd = m$std.rsd
-  if (is.null(rsd)) rsd = residuals(m, type = "pearson")
-  a1 = as.numeric(acf(rsd, plot = F, na.action = na.pass)$acf[2])
-  c(
-    rho = rho, 
-    acf1 = a1, 
-    post = coef(m)["post"], 
-    time_after = coef(m)["time_after"])
-}
-
-res = t(sapply(rhos, fit_rho))
-res = as.data.frame(res)
-
-## choose rho which minimizes AR1
-rho = res[which.min(abs(res$acf1)), ]$rho
-
-AR_start = c(T, rep(F, nrow(itsdat) - 1L))
-
-## ITS BAM with AR1
-prim_adult_bamAR = bam(
-  Y_primary ~ post + time_after + t_idx +
-    s(woy, bs = "cc", k = 50) +
-    offset(log(N_all)),
-  family = nb(link = "log"),
-  data = itsdat,
-  method = "fREML",
-  rho = rho,
-  discrete = T,
-  AR.start = AR_start,
-  knots = list(woy = c(0.5, 52.5))
-)
-
-cf2 = coef(prim_adult_bamAR); V2 = vcov(prim_adult_bamAR); se2 = sqrt(diag(V2))
-
-eff_h2 = \(h) {
-  b  = cf2["post"] + h * cf2["time_after"]
-  se = sqrt(V2["post","post"] + h ^ 2 * V2["time_after","time_after"] + 
-              2 * h * V2["post","time_after"])
-  tibble(
-    h_weeks = h, 
-    RR = exp(b), 
-    RR_l = exp(b - 1.96 * se), 
-    RR_u = exp(b + 1.96 * se))
-}
-
-bind_rows(eff_h2(0), eff_h2(13), eff_h2(26), eff_h2(52))
-
-## rate ratios
-rr_adult_bam = tibble(
-  term = names(cf2),
-  est = cf2, 
-  se = se2,
-  lcl = cf2 - 1.96 * se,
-  ucl = cf2 + 1.96 * se) %>%
-  mutate(
-    RR = exp(est),
-    RR_l = exp(lcl),
-    RR_r = exp(ucl)) %>%
-  filter(term %in% c("post", "time_after"))
-
-rr_adult_bam
-
-coef(prim_adult_bamAR)[c("t_idx","post","time_after")]
-gam.check(prim_adult_bamAR)
-
-acf(prim_adult_bamAR$std.rsd, plot = F, na.action = na.pass)$acf[1:8]
-pacf(prim_adult_bamAR$std.rsd, plot = F, na.action = na.pass)$acf[1:8]
-concurvity(prim_adult_bamAR, full = T)
-summary(prim_adult_bamAR)
-
-
-## ACF of residuals
-acf(
-  prim_adult_bamAR$std.rsd, 
-  na.action = na.pass, 
-  main = "ACF: std.rsd (BAM, AR1)")
-pacf(
-  prim_adult_bamAR$std.rsd, 
-  na.action = na.pass, 
-  main = "pACF: std.rsd (BAM, AR1)")
-
-## Ljung-Box 
-Box.test(prim_adult_bamAR$std.rsd, lag = 5, type = "Ljung-Box") # p=0.56
-Box.test(prim_adult_bamAR$std.rsd, lag = 8, type = "Ljung-Box") # p=0.79
-Box.test(prim_adult_bamAR$std.rsd, lag = 12, type = "Ljung-Box") # p=0.95
-Box.test(prim_adult_bamAR$std.rsd, lag = 35, type = "Ljung-Box") # p=0.88
-
-##
-itsdat_b = itsdat %>%
-  mutate(mu_hat = predict(prim_adult_bamAR, type = "response"))
-
-itsdat_cf = itsdat_b
-itsdat_cf$post[itsdat_cf$t_idx >= t0] = 0L
-itsdat_cf$time_after[itsdat_cf$t_idx >= t0] = 0L
-
-itsdat_b = itsdat_b %>%
-  mutate(mu_cf = predict(prim_adult_bamAR, newdata = itsdat_cf, type = "response")) %>%
-  mutate(
-    rate_obs = 1000 * Y_primary / N_all,
-    rate_hat = 1000 * mu_hat / N_all,
-    rate_cf  = 1000 * mu_cf  / N_all
-  )
-
-ggplot(itsdat_b, aes(x = week_start)) +
-  geom_vline(xintercept = intervention_date) +
-  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
-  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
-  geom_line(aes(y = rate_cf),  linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  labs(
-    x = "",
-    y = "Rate per 1,000 all-cause intakes",
-    #title = "ITS-GAM AR(1): Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
-    #subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(size = 13)
-  )
-
-ggsave(
-  filename = paste0("plots/BAM_InEK_primary_AR1_", DATE, ".svg"),
-  width = 14,
-  height = 8
-)
-
-## ITS BAM AR1 <----------------------------------------------------------------
-prim_adultAR = gamm(
-  Y_primary ~ post + time_after + t_idx +
-    s(woy, bs = "cc", k = 52) +
-    offset(log(N_all)),
-  family = quasipoisson(link="log"),
-  data = itsdat,
-  correlation = corAR1(form = ~ t_idx),
-  knots = list(woy = c(0.5, 52.5))
-)
-
-summary(prim_adultAR$gam)
-
-intervals(prim_adultAR$lme)$corStruct
-# oder:
-summary(prim_adultAR$lme)
-
-summary(prim_adultAR$gam)$p.table[c("post", "time_after"), "Estimate"]
-
-# NB-AR1
-b  = summary(prim_adultAR$gam)$p.table["post","Estimate"]
-se = summary(prim_adultAR$gam)$p.table["post","Std. Error"]
-c(RR=exp(b), L=exp(b-1.96*se), U=exp(b+1.96*se))
-
-
-# Koeffizienten
-coef(prim_adultAR$gam)[c("t_idx","post","time_after")]
-summary(prim_adultAR$gam)$p.table[c("t_idx","post","time_after"), ]
-
-r_gam = residuals(prim_adultAR$gam, type = "pearson")
-acf(r_gam, na.action = na.pass, main = "ACF: Pearson-Residuen (gamm$gam)")
-
-r_lme = resid(prim_adultAR$lme, type = "normalized")
-acf(r_lme, na.action = na.pass, main = "ACF: normalisierte Residuen (gamm$lme, AR1)")
-
-## fitted values (AR1-model via gamm)
-itsdat2 = itsdat %>%
-  mutate(mu_hat = predict(prim_adultAR$gam, type = "response"))
-
-## counterfactual (post=0, time_after=0 ab t0)
-itsdat_cf = itsdat2
-itsdat_cf$post[itsdat_cf$t_idx >= t0] = 0L
-itsdat_cf$time_after[itsdat_cf$t_idx >= t0] = 0L
-
-## counterfactual predictions + rates
-itsdat2 = itsdat2 %>%
-  mutate(
-    mu_cf = predict(prim_adultAR$gam, newdata = itsdat_cf, type = "response")
-  ) %>%
-  mutate(
-    rate_obs = 1000 * Y_primary / N_all,
-    rate_hat = 1000 * mu_hat / N_all,
-    rate_cf  = 1000 * mu_cf  / N_all
-  )
-
-## plot
-ggplot(itsdat2, aes(x = week_start)) +
-  geom_vline(xintercept = intervention_date) +
-  geom_line(aes(y = rate_obs), linewidth = 0.7, alpha = 0.35, color = pcol) +
-  geom_line(aes(y = rate_hat), linewidth = 1.0, alpha = 1, color = pcol) +
-  geom_line(aes(y = rate_cf),  linewidth = 1.0, linetype = "22", alpha = 1, color = pcol) +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  labs(
-    x = "",
-    y = "Rate pro 1 000 all-cause Aufnahmen",
-    title = "ITS-GAM AR(1): Raten cannabisbezogener Hauptdiagnosen bei Erwachsenen",
-    subtitle = "Beobachtet (transparent), fitted (fett), Verlauf ohne Intervention (gestrichelt)"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(size = 13)
-  )
-
-ggsave(
-  filename = paste0("plots/GAM_InEK_primary_AR1_", DATE, ".svg"),
-  width = 14,
-  height = 8
-)
-
-## old plots <------------------------------------------------------------------
-p_sys_level = ggplot(
-  sens_sys_res %>% filter(term == "post"),
-  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
-) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  geom_pointrange(position = position_dodge(width = 0.4)) +
-  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
-  labs(
-    x = "Reimbursement system",
-    y = "Rate ratio"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(size = 13)
-  ); p_sys_level
-
-ggsave(
-  filename = paste0("plots/sensitivity_source_level_", DATE, ".svg"),
-  plot = p_sys_level,
-  width = 14,
-  height = 8
-)
-
-
-p_sys_trend = ggplot(
-  sens_sys_res %>% filter(term == "time_after"),
-  aes(x = quelle, y = RR, ymin = RR_l, ymax = RR_u, colour = outcome)
-) +
-  geom_hline(yintercept = 1, linetype = "dashed") +
-  geom_pointrange(position = position_dodge(width = 0.4)) +
-  facet_wrap(~ outcome, scales = "free_y", ncol = 2) +
-  labs(
-    x = "Reimbursement system",
-    y = "Rate ratio"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "none",
-    strip.text = element_text(size = 13)
-  ); p_sys_trend
-
-ggsave(
-  filename = paste0("plots/sensitivity_source_trend_", DATE, ".svg"),
-  plot = p_sys_trend,
-  width = 14,
-  height = 8
-)
