@@ -1462,7 +1462,9 @@ plot_long_ter[, series := factor(
 
 plot_long_ter[, panel := factor(
   panel,
-  levels = c("Alcohol", "Anxiety", "Depression", "Schizophrenia")
+  levels = c("Alcohol", "Anxiety", "Depression", "Schizophrenia"),
+  labels = 
+    c("Alcohol use disorder", "Anxiety disorder", "Depression", "Schizophrenia")
 )]
 
 ## facet plot
@@ -1612,7 +1614,7 @@ summary(dep_adult)$p.table[c("post", "time_after"), "Pr(>|z|)"]
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 7) TABLE 1: Descriptives
+# 7) TABLE 1: Descriptives (Supplementary Table 4)
 # ______________________________________________________________________________________________________________________
 dt0 = copy(dt) %>%
   filter(!(jahr == 2025 & kw %in% c(38:39))) # remove last 2 obs.
@@ -1642,7 +1644,7 @@ age_labs = c(
 
 dt0[, altergruppe_lab := age_labs[altergruppe]]
 
-## actual date version <--------------------------------------------------------
+## actual date version (old) <--------------------------------------------------
 ## pre/post
 intervention_date = as.Date("2024-04-01")
 pre_start = as.Date("2023-04-01")
@@ -1738,7 +1740,7 @@ setorder(tab1, block, row)
 
 tab1
 
-## week of year version <-------------------------------------------------------
+## week of year version (old) <-------------------------------------------------
 dt0[, iso_week_id := jahr * 53L + kw]
 
 ## intervention
@@ -1839,127 +1841,97 @@ setorder(tab1, block, row)
 
 tab1
 
-## tab 1 extension <------------------------------------------------------------
-## long format
+## tab 1 extension (week of year) <---------------------------------------------
 dt_long = rbindlist(list(
-  dt0[, .(altergruppe_lab, date, y = Y_primary, pop = N_all,
+  dt0[, .(altergruppe_lab, iso_week_id, y = Y_primary, pop = N_all,
           outcome = "Any cannabis-specific diagnosis admissions")],
-  dt0[, .(altergruppe_lab, date, y = Y_intox,   pop = N_all,
+  dt0[, .(altergruppe_lab, iso_week_id, y = Y_intox,   pop = N_all,
           outcome = "Acute intoxication admissions")],
-  dt0[, .(altergruppe_lab, date, y = Y_psych,   pop = N_all,
+  dt0[, .(altergruppe_lab, iso_week_id, y = Y_psych,   pop = N_all,
           outcome = "Cannabis-induced psychosis admissions")]
 ), use.names = T)
 
-## rate per 1000 all-cause admissions
+## rate per 1000 
 dt_long[, rate := (y / pop) * 1e3]
 
-setorder(dt_long, outcome, altergruppe_lab, date)
+setorder(dt_long, outcome, altergruppe_lab, iso_week_id)
 
-## Table 1
-tab1_long = dt_long[, {
+## subset: primary outcome all age groups; secondary outcomes adults only
+dt_s4 = dt_long[
+  outcome == "Any cannabis-specific diagnosis admissions" |
+    (outcome %in% c("Acute intoxication admissions",
+                    "Cannabis-induced psychosis admissions") &
+       altergruppe_lab == "Adults")]
+
+## column identifier
+dt_s4[, col_id := fcase(
+  outcome == 
+    "Any cannabis-specific diagnosis admissions" & altergruppe_lab == "Total",
+  "Primary: Total",
+  outcome == 
+    "Any cannabis-specific diagnosis admissions" & altergruppe_lab == "Adults",
+  "Primary: Adults",
+  outcome == 
+    "Any cannabis-specific diagnosis admissions" & altergruppe_lab == "Adolescents",
+  "Primary: Adolescents",
+  outcome == "Acute intoxication admissions" & altergruppe_lab == "Adults",
+  "Secondary 1: Adults",
+  outcome == 
+    "Cannabis-induced psychosis admissions" & altergruppe_lab == "Adults",
+  "Secondary 2: Adults"
+)]
+
+## summary statistics per column
+tab_s4_long = dt_s4[, {
   d = .SD
-  d_pre  = d[date >= pre_start  & date <  pre_end]
-  d_post = d[date >= post_start & date <  post_end]
-  out_lab = .BY$outcome
-  row_lab_rate = fifelse(
-    out_lab == "Any cannabis-specific diagnosis admissions",
-    "Weekly rate¹: mean (SD)",
-    fifelse(
-      out_lab == "Acute intoxication admissions",
-      "Weekly rate²: mean (SD)",
-      "Weekly rate³: mean (SD)"))
-  row_lab_rate_pre = fifelse(
-    out_lab == "Any cannabis-specific diagnosis admissions",
-    "12 months before 1 April 2024: weekly rate¹: mean (SD)",
-    fifelse(
-      out_lab == "Acute intoxication admissions",
-      "12 months before 1 April 2024: weekly rate²: mean (SD)",
-      "12 months before 1 April 2024: weekly rate³: mean (SD)"))
-  row_lab_rate_post = fifelse(
-    out_lab == "Any cannabis-specific diagnosis admissions",
-    "12 months after 1 April 2024: weekly rate¹: mean (SD)",
-    fifelse(
-      out_lab == "Acute intoxication admissions",
-      "12 months after 1 April 2024: weekly rate²: mean (SD)",
-      "12 months after 1 April 2024: weekly rate³: mean (SD)"))
+  d_pre = d[iso_week_id >= pre_min_id  & iso_week_id <= pre_max_id]
+  d_post = d[iso_week_id >= post_min_id & iso_week_id <= post_max_id]
   rbind(
     data.table(
-      block = out_lab,
+      row_order = 1L,
       row = "Total N",
-      value = as.character(sum(d$y, na.rm = T))),
+      value = formatC(sum(d$y, na.rm = T), format = "d", big.mark = ",")),
     data.table(
-      block = out_lab,
-      row = "Total N: 12 months before 1 April 2024",
-      value = as.character(sum(d_pre$y, na.rm = T))),
+      row_order = 2L,
+      row = "12 months before 1 April 2024: N",
+      value = formatC(sum(d_pre$y, na.rm = T), format = "d", big.mark = ",")),
     data.table(
-      block = out_lab,
-      row = "Total N: 12 months after 1 April 2024",
-      value = as.character(sum(d_post$y, na.rm = T))),
+      row_order = 3L,
+      row = "12 months since 1 April 2024: N",
+      value = formatC(sum(d_post$y, na.rm = T), format = "d", big.mark = ",")),
     data.table(
-      block = out_lab,
+      row_order = 4L,
       row = "Weekly N: mean (SD)",
-      value = sprintf("%.2f (%.2f)",
-                      mean(d$y, na.rm = T),
-                      sd(d$y, na.rm = T))),
+      value = sprintf("%.2f (%.2f)", mean(d$y, na.rm = T), sd(d$y, na.rm = T))),
     data.table(
-      block = out_lab,
-      row = row_lab_rate,
-      value = sprintf("%.2f (%.2f)",
-                      mean(d$rate, na.rm = T),
+      row_order = 5L,
+      row = "Weekly rate\u00b9\u00b2\u00b3: mean (SD)",
+      value = sprintf("%.2f (%.2f)", mean(d$rate, na.rm = T),
                       sd(d$rate, na.rm = T))),
     data.table(
-      block = out_lab,
-      row = row_lab_rate_pre,
-      value = sprintf("%.2f (%.2f)",
-                      mean(d_pre$rate, na.rm = T),
+      row_order = 6L,
+      row = "12 months before 1 April 2024: rate",
+      value = sprintf("%.2f (%.2f)", mean(d_pre$rate, na.rm = T),
                       sd(d_pre$rate, na.rm = T))),
     data.table(
-      block = out_lab,
-      row = row_lab_rate_post,
-      value = sprintf("%.2f (%.2f)",
-                      mean(d_post$rate, na.rm = T),
+      row_order = 7L,
+      row = "12 months since 1 April 2024: rate",
+      value = sprintf("%.2f (%.2f)", mean(d_post$rate, na.rm = T),
                       sd(d_post$rate, na.rm = T))))
-}, by = .(outcome, altergruppe_lab)]
+}, by = .(col_id)]
 
-## wide format
-tab1 = dcast(
-  tab1_long,
-  block + row ~ altergruppe_lab,
-  value.var = "value")
+## pivot wide
+tab_s4 = dcast(tab_s4_long, row_order + row ~ col_id, value.var = "value")
 
-## order
-tab1[, block := factor(block, levels = c(
-  "Any cannabis-specific diagnosis admissions",
-  "Acute intoxication admissions",
-  "Cannabis-induced psychosis admissions"))]
+## column order matching Jakob's layout
+setcolorder(tab_s4, c(
+  "row_order", "row", "Primary: Total", "Primary: Adults",
+  "Primary: Adolescents", "Secondary 1: Adults", "Secondary 2: Adults"))
 
-tab1[, row := factor(row, levels = c(
-  "Total N",
-  "Total N: 12 months before 1 April 2024",
-  "Total N: 12 months after 1 April 2024",
-  "Weekly N: mean (SD)",
-  "Weekly rate¹: mean (SD)",
-  "12 months before 1 April 2024: weekly rate¹: mean (SD)",
-  "12 months after 1 April 2024: weekly rate¹: mean (SD)",
-  "Weekly rate²: mean (SD)",
-  "12 months before 1 April 2024: weekly rate²: mean (SD)",
-  "12 months after 1 April 2024: weekly rate²: mean (SD)",
-  "Weekly rate³: mean (SD)",
-  "12 months before 1 April 2024: weekly rate³: mean (SD)",
-  "12 months after 1 April 2024: weekly rate³: mean (SD)"))]
+setorder(tab_s4, row_order)
+tab_s4[, row_order := NULL]
 
-setorder(tab1, block, row)
-
-tab1_out = copy(tab1)
-
-sec_rows = tab1_out$block %in% c(
-  "Acute intoxication admissions",
-  "Cannabis-induced psychosis admissions")
-
-tab1_out[sec_rows, Adolescents := "/"]
-tab1_out[sec_rows, Total := "/"]
-
-tab1_out
+tab_s4
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
@@ -1967,7 +1939,7 @@ tab1_out
 # 8) SENSITIVITY ANALYSES
 # ______________________________________________________________________________________________________________________
 intervention_date = as.Date("2024-04-01")
-placebo_shifts = -10L:10L
+placebo_shifts = seq(-20L, 20L, by = 2L)
 
 # facet order 
 outcome_levels = c(
@@ -2421,9 +2393,6 @@ ft_sens_model_info
 #)
 
 ## Placebo test <---------------------------------------------------------------
-intervention_date = as.Date("2024-04-01")
-placebo_shifts = seq(-20L, 20L, by = 2L)
-
 get_t0 = \(d) {
   t0 = d %>%
     filter(week_start <= intervention_date & intervention_date <= week_end) %>%
@@ -2809,47 +2778,60 @@ save_as_docx(ft_suppl1, path = paste0("supp_table_exclusion_results_", DATE, ".d
 # ==================================================================================================================================================================
 # ==================================================================================================================================================================
 
-# 11) SUPPLEMENTARY TABLE 3
+# 10b) SUPPLEMENTARY TABLE 3
 # ______________________________________________________________________________________________________________________
-all_codes_main = tibble(
-  icd_code = c(paste0("F12.", 0:9), "T40.7")
-)
+main_diag = dat2 %>%
+  filter(
+    subset == "F12.X_T40.7",
+    icd_code %in% c(paste0("F12.", 0:9), "T40.7", "Rest"),
+    !(jahr == 2025 & kw %in% c(38:39))) %>%
+  group_by(icd_code) %>%
+  summarize(
+    Total = sum(fallzahl, na.rm = T),
+    Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+    Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+    DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+    PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T),
+    .groups = "drop") %>%
+  rename(Diagnosis = icd_code)
 
-supp_diag_main = all_codes_main %>%
-  left_join(
-    dat2 %>%
-      filter(
-        subset == "all",
-        icd_code %in% c(paste0("F12.", 0:9), "T40.7"),
-        !(jahr == 2025 & kw %in% c(38:39))) %>%
-      group_by(icd_code) %>%
-      summarize(
-        Total = sum(fallzahl, na.rm = T),
-        Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
-        Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
-        DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
-        PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T),
-        .groups = "drop"), by = "icd_code") %>%
+all_codes_main = tibble(
+  Diagnosis = c(paste0("F12.", 0:9), "T40.7", "Rest"))
+
+supp_diag_codes = all_codes_main %>%
+  left_join(main_diag, by = "Diagnosis") %>%
   mutate(
-    Section = "Primary/secondary outcomes",
-    Diagnosis = icd_code) %>%
+    Section = "Primary/secondary outcomes") %>%
   select(Section, Diagnosis, Total, Adolescents, Adults, DRG, PEPP)
 
-## tertiary outcomes: grouped control diagnoses
+supp_diag_primary_total = dt %>%
+  filter(!(jahr == 2025 & kw %in% c(38:39))) %>%
+  summarize(
+    Total = sum(Y_primary, na.rm = T),
+    Adolescents = sum(Y_primary[altergruppe == "minor"], na.rm = T),
+    Adults = sum(Y_primary[altergruppe == "adult"], na.rm = T)) %>%
+  bind_cols(
+    dat2 %>%
+      filter(
+        subset == "F12.X_T40.7", !(jahr == 2025 & kw %in% c(38:39))) %>%
+      group_by(quelle) %>%
+      summarize(n = sum(fallzahl, na.rm = T), .groups = "drop") %>%
+      pivot_wider(
+        names_from = quelle, values_from = n, values_fill = 0) %>%
+      transmute(
+        DRG = if ("DRG" %in% names(.)) DRG else 0,
+        PEPP = if ("PEPP" %in% names(.)) PEPP else 0)) %>%
+  mutate(
+    Section = "Primary/secondary outcomes",
+    Diagnosis = "All cannabis-specific diagnoses (F12.x/T40.7)") %>%
+  select(Section, Diagnosis, Total, Adolescents, Adults, DRG, PEPP)
+
+supp_diag_main = bind_rows(
+  supp_diag_codes,
+  supp_diag_primary_total)
+
+## tertiary outcomes
 supp_diag_ter = bind_rows(
-  dat2 %>%
-    filter(
-      subset == "all",
-      str_detect(icd_code, "^F2"),
-      !(jahr == 2025 & kw %in% c(32:39))) %>%
-    summarize(
-      Total = sum(fallzahl, na.rm = T),
-      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
-      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
-      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
-      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
-    mutate(Diagnosis = "Schizophrenia: F2x"),
-  
   dat2 %>%
     filter(
       subset == "all",
@@ -2861,8 +2843,9 @@ supp_diag_ter = bind_rows(
       Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
       DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
       PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
-    mutate(Diagnosis = "Alcohol: F10; T51"),
-  
+    mutate(
+      Section = "Tertiary outcomes",
+      Diagnosis = "Alcohol use disorders (F10.X; T51)"),
   dat2 %>%
     filter(
       subset == "all",
@@ -2876,8 +2859,9 @@ supp_diag_ter = bind_rows(
       Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
       DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
       PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
-    mutate(Diagnosis = "Anxiety: F40-F41; F48.8; F48.9"),
-  
+    mutate(
+      Section = "Tertiary outcomes",
+      Diagnosis = "Anxiety disorders (F40.X-F41.X; F48.8; F48.9)"),
   dat2 %>%
     filter(
       subset == "all",
@@ -2890,11 +2874,62 @@ supp_diag_ter = bind_rows(
       Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
       DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
       PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
-    mutate(Diagnosis = "Depression: F32-F33")) %>%
-  mutate(Section = "Tertiary outcomes") %>%
+    mutate(
+      Section = "Tertiary outcomes",
+      Diagnosis = "Depression (F32.X-F33.X)"),
+  dat2 %>%
+    filter(
+      subset == "all",
+      str_detect(icd_code, "^F2"),
+      !(jahr == 2025 & kw %in% c(32:39))) %>%
+    summarize(
+      Total = sum(fallzahl, na.rm = T),
+      Adolescents = sum(fallzahl[altergruppe == "minor"], na.rm = T),
+      Adults = sum(fallzahl[altergruppe == "adult"], na.rm = T),
+      DRG = sum(fallzahl[quelle == "DRG"], na.rm = T),
+      PEPP = sum(fallzahl[quelle == "PEPP"], na.rm = T)) %>%
+    mutate(
+      Section = "Tertiary outcomes",
+      Diagnosis = "Schizophrenia (F2X)")) %>%
   select(Section, Diagnosis, Total, Adolescents, Adults, DRG, PEPP)
 
 ## combine
 supp_diag = bind_rows(supp_diag_main, supp_diag_ter)
-supp_diag
+supp_diag_fmt = as.data.table(supp_diag)
 
+fmt_zero_star = \(x) {
+  ifelse(is.na(x) | x == 0, "0*", format(x, big.mark = ",", scientific = F))
+}
+
+num_cols = c("Total", "Adolescents", "Adults", "DRG", "PEPP")
+supp_diag_fmt[, (num_cols) := lapply(.SD, fmt_zero_star), .SDcols = num_cols]
+
+total_row = supp_diag_fmt$Diagnosis == 
+  "All cannabis-specific diagnoses (F12.x/T40.7)"
+supp_diag_fmt[total_row, `:=`(
+  Total = format(supp_diag$Total[total_row], big.mark = ",", scientific = F),
+  Adolescents = format(
+    supp_diag$Adolescents[total_row], big.mark = ",", scientific = F),
+  Adults = format(supp_diag$Adults[total_row], big.mark = ",", scientific = F),
+  DRG = format(supp_diag$DRG[total_row], big.mark = ",", scientific = F),
+  PEPP = format(supp_diag$PEPP[total_row], big.mark = ",", scientific = F))]
+
+## ordering
+supp_diag_fmt[, Diagnosis := factor(
+  Diagnosis,
+  levels = c(
+    paste0("F12.", 0:9),
+    "T40.7", "Rest",
+    "All cannabis-specific diagnoses (F12.x/T40.7)",
+    "Alcohol use disorders (F10.X; T51)",
+    "Anxiety disorders (F40.X-F41.X; F48.8; F48.9)",
+    "Depression (F32.X-F33.X)",
+    "Schizophrenia (F2X)"))]
+
+supp_diag_fmt[, Section := factor(
+  Section,
+  levels = c("Primary/secondary outcomes", "Tertiary outcomes"))]
+
+setorder(supp_diag_fmt, Section, Diagnosis)
+
+supp_diag_fmt
