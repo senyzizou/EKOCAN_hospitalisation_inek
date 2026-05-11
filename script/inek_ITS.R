@@ -1300,8 +1300,11 @@ plot_long[, series := factor(
 plot_long[, panel := factor(
   panel,
   levels = c("Primary (adults)", "Primary (adolescents)", 
-             "Secondary 1", "Secondary 2")
-)]
+             "Secondary 1", "Secondary 2"),
+  labels = c("Primary outcome adults (all cannabis-specific diagnoses)",
+             "Primary outcome adolescents (all cannabis-specific diagnoses)",
+             "Secondary outcome 1 adults (all cannabis intoxications)",
+             "Secondary outcome 2 adults (all cannabis-induced psychoses)"))]
 
 ## facet plot
 itsa_facet = ggplot(plot_long, aes(x = week_start, y = rate)) +
@@ -1316,7 +1319,7 @@ itsa_facet = ggplot(plot_long, aes(x = week_start, y = rate)) +
     data = plot_long[series == "Counterfactual"],
     linewidth = 1.0, alpha = 1.00, color = pcol, linetype = "22") +
   facet_wrap(~ panel, ncol = 2, scales = "free_y") +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_x_date(date_breaks = "1 year", date_labels = "1 Jan %Y") +
   labs(
     x = "",
     y = "Rate per 1,000 all-cause admissions") +
@@ -1480,7 +1483,7 @@ itsa_facet_ter = ggplot(plot_long_ter, aes(x = week_start, y = rate)) +
     data = plot_long_ter[series == "Counterfactual"],
     linewidth = 1.0, alpha = 1.00, color = pcol, linetype = "22") +
   facet_wrap(~ panel, ncol = 2, scales = "free_y") +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_x_date(date_breaks = "1 year", date_labels = "1 Jan %Y") +
   labs(
     x = "",
     y = "Rate per 1,000 all-cause admissions") +
